@@ -85,21 +85,29 @@ li:hover {
     height: fit-content;
     z-index: 99;
     padding: 0;
-    gap: 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-top:solid 1px #33333325;
+
+  }
+  .Nav_inner{
+    width:100%;
   }
   .Logo {
     display: none;
   }
   ul {
     flex-direction: row;
-    width: 100%;
+    justify-content: space-between;
   }
   .Rights {
     display: none;
   }
   li {
     flex-direction: column;
-    padding: 0.25rem;
+    padding: 0.5rem .25rem;
+    width:25%;
+    border-radius: 0;
   }
   li img {
     width: 5rem;
@@ -110,4 +118,5 @@ li:hover {
   .Nav_foot {
     display: none;
   }
+
 }

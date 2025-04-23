@@ -14,6 +14,7 @@
   -moz-transform: translateX(-5rem);
   -ms-transform: translateX(-5rem);
   -o-transform: translateX(-5rem);
+  min-height:90dvh;
 }
 
 @keyframes Page {
@@ -257,15 +258,23 @@
 @media (max-width: 431px) {
   .Dashboard {
     width: 100%;
-    padding: 1rem;
+    padding:0;
+  }
+  .Dash_title{
+    border-radius: 0;
+    font-size: 1.25em;
   }
   .Widget_right {
     padding-right: 0;
   }
+  .Widget_bottom{
+    gap:.5rem;
+  }
   .Clockin1,
   .Clockin2 {
-    width: 47%;
+    width: 23%;
     flex-direction: column;
+    padding:.35rem;
   }
   .Clock_widget {
     gap: 0.25rem;
@@ -273,7 +282,8 @@
     align-items: center;
   }
   .Camera {
-    height: 64px;
+    height: 50px;
+    padding:.5rem;
   }
   .Widget_bottom {
     flex-wrap: wrap;
@@ -305,5 +315,8 @@
   .Widget_left {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .Time_widget, .Eye{
+    display: none;
   }
 }

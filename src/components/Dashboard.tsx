@@ -74,7 +74,7 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
             <div className={styles.Clock_widget}>
               <div className={styles.Clock_inner}>
                 <span>Clock In</span>
-                <img src={Eye} alt="Eye icon" />
+                <img className={styles.Eye} src={Eye} alt="Eye icon" />
               </div>
               <span className={styles.Time_widget}>8:00 AM</span>
             </div>
@@ -90,7 +90,7 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
             <div className={styles.Clock_widget}>
               <div className={styles.Clock_inner}>
                 <span>Clock In</span>
-                <img src={Eye} alt="Eye icon" />
+                <img className={styles.Eye} src={Eye} alt="Eye icon" />
               </div>
               <span className={styles.Time_widget}>8:00 AM</span>
             </div>
@@ -101,7 +101,7 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
             <div className={styles.Clock_widget}>
               <div className={styles.Clock_inner}>
                 <span>Clock In</span>
-                <img src={Eye} alt="Eye icon" />
+                <img className={styles.Eye} src={Eye} alt="Eye icon" />
               </div>
               <span className={styles.Time_widget}>8:00 AM</span>
             </div>
@@ -112,7 +112,7 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
             <div className={styles.Clock_widget}>
               <div className={styles.Clock_inner}>
                 <span>Clock In</span>
-                <img src={Eye} alt="Eye icon" />
+                <img className={styles.Eye} src={Eye} alt="Eye icon" />
               </div>
               <span className={styles.Time_widget}>8:00 AM</span>
             </div>
