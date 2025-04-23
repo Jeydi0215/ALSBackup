@@ -1,42 +1,54 @@
-## Daily Time Record Application for ALS Teachers and Admin
+# React + TypeScript + Vite
 
-### Overview
-This repository contains the source code for a Daily Time Record (DTR) application designed specifically for ALS (Alternative Learning System) teachers and administrators. The application aims to streamline the process of tracking attendance, work hours, and other relevant data, ensuring efficient and accurate record-keeping.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-### Features
-- **User Authentication**: Secure login for teachers and admin.
-- **Location Verification**: Users must take a picture of their current location upon login.
-- **Attendance Tracking**: Easy-to-use interface for logging daily attendance.
-- **Work Hours Calculation**: Automated calculation of total work hours.
-- **Reports Generation**: Generate detailed reports for individual teachers and overall statistics.
-- **Admin Dashboard**: Comprehensive dashboard for administrators to manage records and users.
-- **Data Export**: Export data to various formats (CSV, PDF, etc.).
+Currently, two official plugins are available:
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/daily-time-record-app.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd daily-time-record-app
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Start the application:
-   ```bash
-   npm start
-   ```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-### Usage
-- Teachers can log their daily attendance and work hours.
-- Upon login, users are required to take a picture of their current location for verification.
-- Admins can manage user accounts, view attendance records, and generate reports.
+## Expanding the ESLint configuration
 
-### Contributing
-We welcome contributions! Please read our Contributing Guidelines for more details.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-### License
-This project is licensed under the MIT License. See the LICENSE file for more information.
+```js
+export default tseslint.config({
+  extends: [
+    // Remove ...tseslint.configs.recommended and replace with this
+    ...tseslint.configs.recommendedTypeChecked,
+    // Alternatively, use this for stricter rules
+    ...tseslint.configs.strictTypeChecked,
+    // Optionally, add this for stylistic rules
+    ...tseslint.configs.stylisticTypeChecked,
+  ],
+  languageOptions: {
+    // other options...
+    parserOptions: {
+      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+})
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default tseslint.config({
+  plugins: {
+    // Add the react-x and react-dom plugins
+    'react-x': reactX,
+    'react-dom': reactDom,
+  },
+  rules: {
+    // other rules...
+    // Enable its recommended typescript rules
+    ...reactX.configs['recommended-typescript'].rules,
+    ...reactDom.configs.recommended.rules,
+  },
+})
+```
