@@ -21,7 +21,8 @@
 }
 
 .Schedule_head span{
-    color:#595959;
+    color:#9D9D9D;
+    font-weight: bold;
 }
 
 table {
@@ -40,4 +41,34 @@ table {
 
   thead {
     background-color: #f0f0f0;
+  }
+
+  @media(min-width:768px) and (max-width:1024px){
+    .Schedule_head span{
+      font-size: 1.25em;
+      text-align: right;
+    }
+    .Schedule_head{
+      gap:1rem;
+    }
+    .Schedule_head select, .Schedule_head option{
+      width:20%;
+      padding:.5rem;
+      font-size: .75em;
+    }
+  }
+
+  @media(max-width:431px){
+    .Schedule_head span{
+      font-size: .75em;
+      text-align: right;
+    }
+    .Schedule_head{
+      gap:1rem;
+    }
+    .Schedule_head select, .Schedule_head option{
+      width:40%;
+      padding:.5rem;
+      font-size: .75em;
+    }
   }

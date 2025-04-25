@@ -1,5 +1,5 @@
 .Nav {
-  width: 15vw;
+  width: 12vw;
   background-color: #fff;
   height: 100dvh;
   display: flex;
@@ -74,6 +74,51 @@ li:hover {
 .Rights {
   font-size: 0.85em;
   color: #333;
+}
+
+@media(min-width:768px) and (max-width:1024px){
+  .Nav {
+    position: fixed;
+    width: 100%;
+
+    bottom: 0;
+    height: fit-content;
+    z-index: 99;
+    padding: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-top:solid 1px #33333325;
+
+  }
+  .Nav_inner{
+    width:100%;
+  }
+  .Logo {
+    display: none;
+  }
+  ul {
+
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .Rights {
+    display: none;
+  }
+  li {
+    flex-direction: column;
+    padding: 0.5rem .25rem;
+    width:25%;
+    border-radius: 0;
+  }
+  li img {
+    width: 7rem;
+  }
+  li span {
+    font-size: 1em;
+  }
+  .Nav_foot {
+    display: none;
+  }
 }
 
 @media (max-width: 431px) {

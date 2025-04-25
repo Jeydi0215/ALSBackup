@@ -99,7 +99,7 @@ const Profile = () => {
               className={activeButton === "logs" ? styles.Active : ""}
               onClick={() => handleClick("logs")}
             >
-              Logs from last week
+              Last week
             </button>
             <button
               className={activeButton === "schedule" ? styles.Active : ""}
