@@ -1,5 +1,5 @@
 .Profile {
-    width: calc(100% - 12vw);
+  width: 100%;
     min-height:90dvh;
   
     display: flex;

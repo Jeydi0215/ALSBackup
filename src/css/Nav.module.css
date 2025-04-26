@@ -1,5 +1,5 @@
 .Nav {
-  width: 12vw;
+  width: 250px;
   background-color: #fff;
   height: 100dvh;
   display: flex;
@@ -8,6 +8,8 @@
   gap: 2rem;
   justify-content: space-between;
   padding: 1rem 0;
+  position: fixed;
+  z-index: 2;
 }
 .Nav_inner {
   display: flex;

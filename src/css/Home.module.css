@@ -98,8 +98,15 @@
   color: #0f50aa;
   border: solid 1px #0f50aa;
 }
+.Render{
+  width:100%;
+  margin-left: calc(250px + 1rem);
+}
 
 @media (max-width: 431px) {
+  .Render{
+    margin-left:0;
+  }
   .Logout {
     width: 85%;
   }

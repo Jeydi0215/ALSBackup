@@ -1,5 +1,5 @@
 .History {
-  width: calc(100% - 12vw);
+  width: 100%;
   min-height:90dvh;
 
   display: flex;
@@ -106,16 +106,18 @@
   height: 100%;
 }
 
+
+
 table {
   width: 100%;
   border-collapse: collapse;
   background: white;
-  border-style: hidden; /* ✅ hides outer table border */
+  border-style: hidden; 
 }
 
 th,
 td {
-  border: 1px solid #33333325; /* Inner cell borders only */
+  border: 1px solid #33333325;
   text-align: center;
   padding: 0.75rem;
   color: #383e49;
@@ -227,6 +229,7 @@ td {
 }
 
 @media (max-width: 431px) {
+
   .Filter, .History_right button{
     padding: .25rem .5rem;
     font-size: .55em;
@@ -254,12 +257,12 @@ td {
     width: 25%;
   }
   table {
-    overflow: scroll;
+    width: 150vw;
   }
   th,
   td {
-    font-size: 0.5em;
-    padding: 0.35rem;
+    font-size: 0.55em;
+    padding: 0.25rem;
   }
   .Rejected,
   .Approved {
@@ -272,4 +275,17 @@ td {
   .pages{
     font-size: .65em;
   }
+  .table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
+  }
+  
+  .table-container table {
+    width: 100%;
+    min-width: 600px; /* Adjust based on your table size */
+    border-collapse: collapse;
+  }
+  
+  
 }

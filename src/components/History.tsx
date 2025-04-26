@@ -21,7 +21,8 @@ const History = () => {
             </div>
           </div>
 
-          <table>
+          <div className={styles.table_container}>
+            <table>
             <thead>
               <tr>
                 <th>Date</th>
@@ -90,7 +91,8 @@ const History = () => {
                 </td>
               </tr>
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div className={styles.pagination}>

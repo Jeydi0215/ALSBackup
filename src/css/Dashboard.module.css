@@ -1,6 +1,7 @@
 .Dashboard {
   padding: 1rem 1rem 1rem 0;
-  width: calc(100% - 12vw);
+  width: 100%;
+  float: right;
   display: flex;
   flex-direction: column;
   gap: 1rem;
