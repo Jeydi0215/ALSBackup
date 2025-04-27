@@ -69,11 +69,19 @@
     align-items: center;
 }
 .Widget_inner span{
-    font-size:.85em;
+    font-weight: bold;
+    opacity:.75;
+    font-size:.75em;
+    color:#333;
 }
 .Widget_inner img{
     width:1rem;
 }
+.Active{
+    border-bottom:solid 3px #03396c;
+    opacity: 1 !important;
+}
+
 .Monitoring_title {
     padding: 1rem 0 1rem 1rem;
     background-color: #03396c;
@@ -93,6 +101,97 @@
     font-weight: bold;
     color:#333;
 }
+.Monitoring_table{
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap:1rem;
+}
+.Monitoring_inner{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding:0 1rem ;
+    border-bottom: solid 1px #33333350;
+}
+.Monitoring_left, .Monitoring_right{
+    display: flex;
+    gap:1rem;
+    width:100%;
+}
+.Monitoring_right{
+
+    justify-content: flex-end;
+}
+.Monitoring_left button{
+    opacity: .55;
+    width:20%;
+    padding:1rem;
+    color:#333;
+    font-weight: bold;
+    font-size: 1.25em;
+    background-color: #fff;
+
+}
+.Right_inner{
+    display: flex;
+    align-items: center;
+}
+.Right_inner img{
+    width:2rem;
+    background-color: #03396c;
+    padding:.5rem;
+}
+.Right_inner input{
+    height: 100%;
+    padding:.5rem;
+    border-radius: 5px 0 0 5px;
+    outline:solid 1px #03396c50;
+}
+select{
+    width:20%;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-style: hidden; 
+  }
+  th{
+    background-color: #F2F2F2;
+  }
+  
+  th,
+  td {
+    border: 1px solid #33333325;
+    text-align: center;
+    padding: 0.75rem;
+    color: #383e49;
+  }
+  .Hold{
+    display: flex;
+    gap:1rem;
+    justify-content: center;
+
+}
+.EmployeeTracker, .Pending{
+
+    animation:appear 750ms ease forwards;
+}
+
+@keyframes appear{
+    from{
+        opacity: 0;
+        filter: blur(10px);
+        scale:.9;
+    }
+    to{
+        opacity:1;
+        filter: blur(0);
+        scale:1;
+    }
+}
+  
 @media(max-width:431px){
     .Monitoring{
         padding:0;
@@ -113,5 +212,32 @@
     }
     .Count{
         font-size:1.25em;
+    }
+    .Monitoring_left{
+        gap:.25rem;
+    }
+    .Monitoring_inner{
+        gap:1rem;
+    }
+    .Monitoring_left button{
+        font-size: .8em;
+        padding:.45rem;
+        width:fit-content;
+    }
+    select{
+        display:none;
+    }
+    .Monitoring_right{
+        padding:.5rem 0;
+    }
+    .Right_inner input{
+        width:75%;
+        border-radius: 2.5px;
+    }
+    .Active{
+        border-bottom:solid 1px #03396c;
+    }
+    .Monitoring_inner{
+        padding:0 .25rem;
     }
 }

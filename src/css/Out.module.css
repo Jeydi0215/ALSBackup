@@ -1,0 +1,53 @@
+.In, .Out, .Break{
+    padding:.75rem;
+
+    
+    border-radius:10px;
+    width:50%;
+    margin:0 auto;
+    
+    font-weight: bold;
+}
+.Accept,.Reject{
+    width:35%;
+    padding:.75rem;
+
+    
+    border-radius:10px;
+    font-weight: bold;
+}
+.Break{
+    color:#F97316;
+    border:solid 1px #F97316;
+    background-color: #FFEDD5;
+}
+
+.Out{
+    border:solid 1px #6B7280;
+    background-color: #F3F4F6;
+    color:#8E8E93;
+}
+.In{
+    border:solid 1px #3B82F6;
+    background-color: #DBEAFE;
+    color:#1D4ED8;
+}
+
+.Accept{
+    border:solid 1px #D42530;
+    background-color: #F99BA1;
+    color:#333;
+}
+.Reject{
+    color:#333;
+    border:solid 1px #50D280;
+    background-color: #DCFCE7;
+}
+@media(max-width:431px){
+    .Accept, .Reject{
+        width:fit-content;
+    }
+    .In, .Out, .Break{
+        width:100%;
+    }
+}
