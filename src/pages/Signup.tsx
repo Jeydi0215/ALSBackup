@@ -1,8 +1,75 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import styles from "../css/Auth.module.css";
+import { useState } from "react";
+import { createUserWithEmailAndPassword, sendEmailVerification, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
+import { auth } from "../firebase";
 
 import ALS from "../assets/ALS-logo.png";
 const Signup = () => {
+  const navigate = useNavigate()
+
+  const [firstName, setFirstName] = useState("");
+  const [middleInitial, setMiddleInitial] = useState("");
+  const [surname, setSurname] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const validatePassword = (password: string) => {
+    const regex = /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    return regex.test(password);
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!firstName.trim() || !surname.trim()) {
+      setError("First name and surname are required.");
+      return;
+    }    
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setError("Password must be at least 8 characters, include 1 uppercase letter and 1 number.");
+      return;
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(userCredential.user);
+      alert("Verification email sent! Please check your inbox.");
+      navigate("/");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("An unknown error occurred.");
+      }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(auth, provider);
+        navigate("/Home");
+      } catch (err) {
+        if (err instanceof FirebaseError) {
+          setError(err.message);
+        } else {
+          setError("An unexpected error occurred.");
+        }
+      }
+    };
+
+
   return (
     <div className={styles.Main}>
       <div className={styles.Login}>
@@ -10,28 +77,83 @@ const Signup = () => {
           <img src={ALS} alt="Main logo" />
           <span className={styles.Create}>Create an Account</span>
         </div>
-        <form action="">
+        <form onSubmit={handleSignup}>
           <div className={styles.Form_inner}>
-            <label htmlFor="">Name:</label>
-            <input type="text" placeholder="Enter your full name" required />
-          </div>
-          <div className={styles.Form_inner}>
-            <label htmlFor="">Email:</label>
-            <input type="text" placeholder="Enter your email" required />
-          </div>
-          <div className={styles.Form_inner}>
-            <label htmlFor="">Password:</label>
-            <input type="text" placeholder="Enter your password" required />
+            <label htmlFor="firstName">First Name:</label>
+            <input
+              id="firstName"
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Enter your first name"
+              required
+            />
           </div>
 
           <div className={styles.Form_inner}>
-            <label htmlFor="">Confirm Password:</label>
-            <input type="password" placeholder="Confirm your email" required />
+            <label htmlFor="middleInitial">Middle Initial (optional):</label>
+            <input
+              id="middleInitial"
+              type="text"
+              value={middleInitial}
+              onChange={(e) => setMiddleInitial(e.target.value)}
+              placeholder="Enter your middle initial"
+              maxLength={1}
+            />
+          </div>
+
+          <div className={styles.Form_inner}>
+            <label htmlFor="surname">Surname:</label>
+            <input
+              id="surname"
+              type="text"
+              value={surname}
+              onChange={(e) => setSurname(e.target.value)}
+              placeholder="Enter your surname"
+              required
+            />
+          </div>
+          <div className={styles.Form_inner}>
+            <label htmlFor="email">Email:</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+            />
+          </div>
+
+          <div className={styles.Form_inner}>
+            <label htmlFor="password">Password:</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <div className={styles.Form_inner}>
+            <label htmlFor="confirmPassword">Confirm Password:</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm your password"
+              required
+            />
           </div>
           <div className={styles.Form_button}>
             <button type="submit">Signup</button>
-            <button>Sign Up with Google</button>
+            <button onClick={handleGoogleLogin}>Sign Up with Google</button>
           </div>
+
+          {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}
         </form>
 
         <span className={styles.Already}>
