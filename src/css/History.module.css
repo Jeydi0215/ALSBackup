@@ -1,22 +1,32 @@
+.History,
+.Widget_con {
+  flex-direction: column;
+}
+
 .History {
   width: 100%;
-  min-height:90dvh;
-
+  min-height: 90dvh;
   display: flex;
-  flex-direction: column;
   gap: 1rem;
   padding: 1rem 1rem 1rem 0;
   opacity: 0;
   filter: blur(10px);
   -webkit-filter: blur(10px);
-  animation: Page 500ms ease forwards;
+  animation: .5s forwards Page;
   transform: translateX(-5rem);
-  -webkit-animation: Page 500ms ease forwards;
+  -webkit-animation: .5s forwards Page;
   -webkit-transform: translateX(-5rem);
   -moz-transform: translateX(-5rem);
   -ms-transform: translateX(-5rem);
   -o-transform: translateX(-5rem);
 }
+
+.Filter,
+.History_head {
+  display: flex;
+  align-items: center;
+}
+
 @keyframes Page {
   to {
     transform: translateX(0);
@@ -29,6 +39,7 @@
     -o-transform: translateX(0);
   }
 }
+
 .HistoryText {
   background-color: #03396c;
   padding: 1rem;
@@ -40,20 +51,26 @@
   -o-border-radius: 10px;
   font-size: 1.5em;
 }
+
 .History_head {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding:1rem 1rem 0 1rem;
+  padding: 1rem 1rem 0;
 }
+
 .Filter {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  gap: .5rem;
 }
-.History_head select,
-.History_head option {
-  padding: 0.5rem 0.75rem;
+
+.History_inner,
+.History_right,
+.Widget_con {
+  gap: 1rem;
+  display: flex;
+}
+
+.History_head option,
+.History_head select {
+  padding: .5rem .75rem;
   color: #03396c;
 }
 
@@ -63,41 +80,34 @@
   -moz-border-radius: 5px;
   -ms-border-radius: 5px;
   -o-border-radius: 5px;
-  border: solid 1px #03396c;
+  border: 1px solid #03396c;
 }
 
 .Filter img {
   width: 1rem;
 }
+
 .History_right {
-  display: flex;
   align-items: center;
-  gap: 1rem;
 }
-.History_right button,
-.Filter {
-  padding: 0.75rem 1rem;
-  border: solid 1px #03396c;
+
+.Filter,
+.History_right button {
+  padding: .75rem 1rem;
+  border: 1px solid #03396c;
   border-radius: 5px;
   -webkit-border-radius: 5px;
   -moz-border-radius: 5px;
   -ms-border-radius: 5px;
   -o-border-radius: 5px;
-  font-size: 0.75em;
+  font-size: .75em;
   background-color: #fff;
 }
-.Widget_con {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+
 .History_inner {
-  display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 1rem;
   background-color: #fff;
-
   border-radius: 10px;
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
@@ -106,20 +116,18 @@
   height: 100%;
 }
 
-
-
 table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
-  border-style: hidden; 
+  background: #fff;
+  border-style: hidden;
 }
 
-th,
-td {
+td,
+th {
   border: 1px solid #33333325;
   text-align: center;
-  padding: 0.75rem;
+  padding: .75rem;
   color: #383e49;
 }
 
@@ -127,9 +135,10 @@ td {
   padding: 5px 10px;
   border: none;
   border-radius: 5px;
-  color: white;
+  color: #fff;
   cursor: pointer;
 }
+
 .Approved,
 .Rejected {
   width: 75%;
@@ -139,7 +148,7 @@ td {
   -moz-border-radius: 10px;
   -ms-border-radius: 10px;
   -o-border-radius: 10px;
-  padding: 0.75rem 0;
+  padding: .75rem 0;
 }
 
 .Approved {
@@ -155,7 +164,7 @@ td {
   justify-content: space-between;
   align-items: center;
   margin-top: 20px;
-  padding:1rem;
+  padding: 1rem;
 }
 
 .pagination .pages {
@@ -164,128 +173,133 @@ td {
 }
 
 .pagination button {
-  padding: 0.75rem;
+  padding: .75rem;
   background-color: #fff;
   color: #225394;
-  border:solid 1px #225394;
+  border: 1px solid #225394;
   border-radius: 5px;
   cursor: pointer;
   width: 10%;
-  transition: all 350ms;
+  transition: 350ms;
 }
 
 .pagination button:hover {
   background-color: #1a3c6a;
-  color:#fff;
+  color: #fff;
 }
 
-@media(min-width:768px) and (max-width:1024px){
-  .Filter, .History_right button{
+@media (min-width: 768px) and (max-width: 1024px) {
+  .HistoryText,
+  .History_inner {
+    border-radius: 0;
+  }
+
+  .Filter,
+  .History_right button {
     padding: .25rem .5rem;
     font-size: .55em;
   }
-  .History_inner{
-    border-radius: 0;
-  }
-  .History_head select,
-.History_head option{
-    padding:.25rem ;
+
+  .History_head option,
+  .History_head select {
+    padding: .25rem;
     font-size: .55em;
   }
-  .Filter img{
-    width:.75rem;
+
+  .Filter img {
+    width: .75rem;
   }
-  .History{
-    width:100%;
-    padding:0;
+
+  .History {
+    width: 100%;
+    padding: 0;
   }
-  .HistoryText{
+
+  .HistoryText {
     font-size: 1.25em;
-    border-radius: 0;
   }
-  .pagination button {
-    width: 25%;
-  }
+
   table {
     overflow: scroll;
   }
-  th,
-  td {
+
+  td,
+  th {
     font-size: .75em;
-    padding: 0.35rem;
+    padding: .35rem;
   }
+
+  .Approved,
   .Rejected,
-  .Approved {
-    font-size: 0.65em;
-  }
-  .pagination button{
-    padding:.5rem;
-    font-size: .75em;
-    width:20%;
-  }
-  .pages{
+  .pages {
     font-size: .65em;
+  }
+
+  .pagination button {
+    padding: .5rem;
+    font-size: .75em;
+    width: 20%;
   }
 }
 
 @media (max-width: 431px) {
+  .HistoryText,
+  .History_inner {
+    border-radius: 0;
+  }
 
-  .Filter, .History_right button{
+  .Filter,
+  .History_right button {
     padding: .25rem .5rem;
     font-size: .55em;
   }
-  .History_inner{
-    border-radius: 0;
-  }
+
+  .History_head option,
   .History_head select,
-.History_head option{
-    padding:.25rem ;
+  td,
+  th {
     font-size: .55em;
+    padding: .25rem;
   }
-  .Filter img{
-    width:.75rem;
+
+  .Filter img {
+    width: .75rem;
   }
-  .History{
-    width:100%;
-    padding:0;
+
+  .History {
+    width: 100%;
+    padding: 0;
   }
-  .HistoryText{
+
+  .HistoryText {
     font-size: 1.25em;
-    border-radius: 0;
   }
+
   .pagination button {
     width: 25%;
+    padding: .35rem;
+    font-size: .55em;
   }
+
   table {
     width: 150vw;
   }
-  th,
-  td {
-    font-size: 0.55em;
-    padding: 0.25rem;
-  }
+
+  .Approved,
   .Rejected,
-  .Approved {
-    font-size: 0.65em;
-  }
-  .pagination button{
-    padding:.35rem;
-    font-size: .55em;
-  }
-  .pages{
+  .pages {
     font-size: .65em;
   }
+
   .table-container {
     width: 100%;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
   }
-  
+
   .table-container table {
     width: 100%;
-    min-width: 600px; /* Adjust based on your table size */
+    min-width: 600px;
     border-collapse: collapse;
   }
-  
-  
 }
