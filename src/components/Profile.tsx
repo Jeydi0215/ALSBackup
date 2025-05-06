@@ -1,27 +1,32 @@
-import { useState } from 'react'
+import { useState } from "react";
 
-import styles from '../css/Profile.module.css'
-import Avatar from '../assets/avatar.png'
-import Edit from '../assets/Edit.png'
-import User from '../assets/user.png'
-import Gender from '../assets/gender.png'
-import Mail from '../assets/mail.png'
-import Location from '../assets/location.png'
-import Age from '../assets/age.png'
-import Call from '../assets/call.png'
+import styles from "../css/Profile.module.css";
+import Avatar from "../assets/avatar.png";
+import Edit from "../assets/Edit.png";
+import User from "../assets/user.png";
+import Gender from "../assets/gender.png";
+import Mail from "../assets/mail.png";
+import Location from "../assets/location.png";
+import Age from "../assets/age.png";
+import Call from "../assets/call.png";
 
-import Scheduled from './Scheduled'
-
+import Scheduled from "./Scheduled";
+import Summary from "./Summary";
+import LastWeekLog from "./LastWeekLog";
 
 const Profile = () => {
+  const [profileToggle, setProfileToggle] = useState(1);
+  const handleProfileClick = (value) => {
+    setProfileToggle(value);
+  };
 
-  const [activeButton, setActiveButton] = useState("logs"); 
+  const [activeButton, setActiveButton] = useState("logs");
 
   const handleClick = (buttonName) => {
     setActiveButton(buttonName);
   };
 
-  return(
+  return (
     <div className={styles.Profile}>
       <span className={styles.Profile_title}>Profile</span>
       <div className={styles.Profile_inner}>
@@ -32,7 +37,7 @@ const Profile = () => {
             <span>dowellemon@gmail.com</span>
           </div>
 
-          <div className={styles.Personal_details}> 
+          <div className={styles.Personal_details}>
             <div className={styles.Detail_head}>
               <span className={styles.Personal}>Personal Details</span>
               <button className={styles.Edit}>
@@ -46,7 +51,7 @@ const Profile = () => {
                 <img src={User} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Name:</label>
-                  <input type="text" value="Dowelle Dayle Mon"/>
+                  <input type="text" value="Dowelle Dayle Mon" />
                 </div>
               </div>
 
@@ -54,7 +59,7 @@ const Profile = () => {
                 <img src={Mail} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Email:</label>
-                  <input type="text" value="dowelledayle@gmail.com"/>
+                  <input type="text" value="dowelledayle@gmail.com" />
                 </div>
               </div>
 
@@ -62,7 +67,7 @@ const Profile = () => {
                 <img src={Location} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Location:</label>
-                  <input type="text" value="Not Provided"/>
+                  <input type="text" value="Not Provided" />
                 </div>
               </div>
 
@@ -70,7 +75,7 @@ const Profile = () => {
                 <img src={Call} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Phone:</label>
-                  <input type="text" value="09123456789"/>
+                  <input type="text" value="09123456789" />
                 </div>
               </div>
 
@@ -78,7 +83,7 @@ const Profile = () => {
                 <img src={Age} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Age:</label>
-                  <input type="text" value="22"/>
+                  <input type="text" value="22" />
                 </div>
               </div>
 
@@ -86,7 +91,7 @@ const Profile = () => {
                 <img src={Gender} alt="User icon" />
                 <div className={styles.Details_input}>
                   <label htmlFor="">Gender:</label>
-                  <input type="text" value="Dowelle Dayle Mon"/>
+                  <input type="text" value="Dowelle Dayle Mon" />
                 </div>
               </div>
             </div>
@@ -95,34 +100,44 @@ const Profile = () => {
 
         <div className={styles.Profile_bottom}>
           <div className={styles.Bottom_button}>
-              <button
+            <button
+              onClick={() => {
+                handleProfileClick(1);
+                handleClick("logs");
+              }}
               className={activeButton === "logs" ? styles.Active : ""}
-              onClick={() => handleClick("logs")}
             >
               Last week
             </button>
+
             <button
+              onClick={() => {
+                handleProfileClick(2);
+                handleClick("schedule");
+              }}
               className={activeButton === "schedule" ? styles.Active : ""}
-              onClick={() => handleClick("schedule")}
             >
               Schedule
             </button>
+
             <button
+              onClick={() => {
+                handleProfileClick(3);
+                handleClick("summary");
+              }}
               className={activeButton === "summary" ? styles.Active : ""}
-              onClick={() => handleClick("summary")}
             >
               Summary
             </button>
           </div>
 
-          <Scheduled/>
-
-
+          {profileToggle === 1 && <LastWeekLog />}
+          {profileToggle === 2 && <Scheduled />}
+          {profileToggle === 3 && <Summary />}
         </div>
       </div>
-    
     </div>
-  )
+  );
 };
 
 export default Profile;
