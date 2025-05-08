@@ -145,6 +145,7 @@
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
+
 }
 .Widget_top {
   display: flex;
@@ -255,6 +256,22 @@
   font-size: 1.25em;
   font-weight: bold;
   color: #5d6679;
+}
+
+@media(min-width:768px) and (max-width:1024px){
+  .Dashboard{
+    width:100%; 
+    padding:0;
+  }
+  .Dash_title{
+    border-radius: 0;
+  }
+  .Widget_bottom{
+    flex-wrap:wrap;
+  }
+  .Clockin1, .Clockin2{
+    width:48%;
+  }
 }
 @media (max-width: 431px) {
   .Dashboard {

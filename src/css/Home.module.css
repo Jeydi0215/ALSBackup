@@ -102,6 +102,11 @@
   width:100%;
   margin-left: calc(250px + 1rem);
 }
+@media(min-width:768px) and (max-width:1024px){
+  .Render{
+    margin-left: 0;
+  }
+}
 
 @media (max-width: 431px) {
   .Render{
