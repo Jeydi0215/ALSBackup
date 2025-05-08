@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "@firebase/auth";
-import { auth } from "../firebase.ts";
+import { auth, db } from "../firebase.ts";
 import { FirebaseError } from "firebase/app";
 import styles from "../css/Auth.module.css";
 
 import ALS from "../assets/ALS-logo.png";
 import Close from "../assets/close.png";
+import { doc, updateDoc } from "firebase/firestore";
 
 const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => (
   <div className={styles.Forgot}>
@@ -35,7 +36,19 @@ const Login = () => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/Home"); // redirect on success
+      
+      auth.onAuthStateChanged(async (user) => {
+        if (user) {
+          // Update the status to online when the user successfully logs in
+          const userDocRef = doc(db, "users", user.uid);
+          await updateDoc(userDocRef, {
+            status: "online",
+          });
+  
+          // Redirect to Home page
+          navigate("/Home");
+        }
+      });
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(err.message);
@@ -49,7 +62,19 @@ const Login = () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      navigate("/Home");
+      // onAuthStateChanged will trigger after Google login
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // Update the status to online when the user successfully logs in
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+          status: "online",
+        });
+
+        // Redirect to Home page
+        navigate("/Home");
+      }
+    });
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(err.message);

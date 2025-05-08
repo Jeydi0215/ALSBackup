@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { db } from '../firebase'; // Your Firebase configuration
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 import styles from '../css/Monitoring.module.css'
 import EmployeeTracker from './EmployeeTracker'
@@ -16,6 +18,25 @@ const Monitoring = () => {
         setTableShow( !TableShow )
         setActiveButton(buttonName);
     }
+
+    const [loggedInCount, setLoggedInCount] = useState<number>(0);
+    const [totalUsers, setTotalUsers] = useState<number>(0);
+
+    useEffect(() => {
+        const loggedInQuery = query(collection(db, 'users'), where('status', '==', 'online'));
+        const unsubscribeLoggedIn = onSnapshot(loggedInQuery, (snapshot) => {
+          setLoggedInCount(snapshot.size);
+        });
+    
+        const unsubscribeTotalUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+          setTotalUsers(snapshot.size);
+        });
+    
+        return () => {
+          unsubscribeLoggedIn();
+          unsubscribeTotalUsers();
+        };
+      }, []);
     
 
 
@@ -28,7 +49,7 @@ const Monitoring = () => {
                         <span>Logged In</span>
                         <img src={Logged} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>{loggedInCount}/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -36,7 +57,7 @@ const Monitoring = () => {
                         <span>Working</span>
                         <img src={Clock} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -44,7 +65,7 @@ const Monitoring = () => {
                         <span>On Break</span>
                         <img src={Coffee} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -52,7 +73,7 @@ const Monitoring = () => {
                         <span>Clock Out</span>
                         <img src={Out} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
             </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -12,6 +12,7 @@ import History from "../components/History";
 import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
+import { doc, updateDoc } from "firebase/firestore";
 
 
 type Props = {
@@ -58,6 +59,14 @@ const Home = ({
   const handleFirebaseLogout = async () => {
 
     try {
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.uid);
+
+        // Set status to offline explicitly on logout
+        await updateDoc(userDocRef, {
+          status: "offline",
+        });
+      }
       await signOut(auth);
       navigate("/"); 
       handleLogoutClick(); 

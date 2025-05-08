@@ -58,6 +58,7 @@ const Signup = () => {
       surname: surname.trim(),
       email: user.email,
       admin: false,
+      status: "offline",
       approved: false, // admin must approve
       createdAt: new Date()
     });
@@ -89,6 +90,7 @@ const Signup = () => {
           surname: surname.trim(),
           email: user.email,
           admin: false,
+          status: "offline",
           approved: false, // admin must approve
           createdAt: new Date()
         });
