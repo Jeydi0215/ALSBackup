@@ -35,9 +35,9 @@ const Login = () => {
     e.preventDefault();
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const user = result.user;
       
-      auth.onAuthStateChanged(async (user) => {
         if (user) {
           // Update the status to online when the user successfully logs in
           const userDocRef = doc(db, "users", user.uid);
@@ -48,7 +48,7 @@ const Login = () => {
           // Redirect to Home page
           navigate("/Home");
         }
-      });
+      
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(err.message);
@@ -60,10 +60,11 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
+  
     try {
-      await signInWithPopup(auth, provider);
-      // onAuthStateChanged will trigger after Google login
-    auth.onAuthStateChanged(async (user) => {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+  
       if (user) {
         // Update the status to online when the user successfully logs in
         const userDocRef = doc(db, "users", user.uid);
@@ -74,7 +75,7 @@ const Login = () => {
         // Redirect to Home page
         navigate("/Home");
       }
-    });
+    
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(err.message);
@@ -83,7 +84,7 @@ const Login = () => {
       }
     }
   };
-
+  
 
   return (
     <div className={styles.Main}>

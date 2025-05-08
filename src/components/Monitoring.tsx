@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react'
-import { db } from '../firebase'; // Your Firebase configuration
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useState } from 'react'
 
 import styles from '../css/Monitoring.module.css'
 import EmployeeTracker from './EmployeeTracker'
@@ -10,6 +8,7 @@ import Search from '../assets/search.png'
 import Clock from '../assets/clock.png'
 import Coffee from '../assets/coffee.png'
 import Out from '../assets/logout.png'
+import { useMonitoring } from '../context/MonitoringContext';
 
 const Monitoring = () => {
     const [activeButton, setActiveButton] = useState('tracker'); 
@@ -19,26 +18,7 @@ const Monitoring = () => {
         setActiveButton(buttonName);
     }
 
-    const [loggedInCount, setLoggedInCount] = useState<number>(0);
-    const [totalUsers, setTotalUsers] = useState<number>(0);
-
-    useEffect(() => {
-        const loggedInQuery = query(collection(db, 'users'), where('status', '==', 'online'));
-        const unsubscribeLoggedIn = onSnapshot(loggedInQuery, (snapshot) => {
-          setLoggedInCount(snapshot.size);
-        });
-    
-        const unsubscribeTotalUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-          setTotalUsers(snapshot.size);
-        });
-    
-        return () => {
-          unsubscribeLoggedIn();
-          unsubscribeTotalUsers();
-        };
-      }, []);
-    
-
+    const { loggedInCount, totalUsers } = useMonitoring();
 
     return(
         <div className={styles.Monitoring}>

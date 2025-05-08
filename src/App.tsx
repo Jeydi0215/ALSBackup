@@ -4,7 +4,8 @@ import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import PrivateRoute from "./components/PrivateRoute";
-import { AuthProvider } from "./context/AuthContext"; 
+import { AuthProvider } from "./context/AuthContext";
+import { MonitoringProvider } from "./context/MonitoringContext";
 
 
 function App() {
@@ -21,26 +22,28 @@ function App() {
 
   return (
     <AuthProvider>
-    <Router>
-      <Routes>
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/" element={<Login />} />
-        <Route
-          path="/home"
-          element={
-            <PrivateRoute>
-            <Home
-              handleLogoutClick={handleLogoutClick}
-              isLogout={isLogout}
-              handlePageClick={handlePageClick}
-              pageNumber={pageNumber}
+      <MonitoringProvider>
+        <Router>
+          <Routes>
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/" element={<Login />} />
+            <Route
+              path="/home"
+              element={
+                <PrivateRoute>
+                  <Home
+                    handleLogoutClick={handleLogoutClick}
+                    isLogout={isLogout}
+                    handlePageClick={handlePageClick}
+                    pageNumber={pageNumber}
+                  />
+                </PrivateRoute>
+              }
             />
-            </PrivateRoute>
-          }
-        />
-        <Route path="*" element={<div>404 - Page Not Found</div>} />
-      </Routes>
-    </Router>
+            <Route path="*" element={<div>404 - Page Not Found</div>} />
+          </Routes>
+        </Router>
+      </MonitoringProvider>
     </AuthProvider>
   );
 }
