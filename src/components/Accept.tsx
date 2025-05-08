@@ -1,10 +1,28 @@
 import styles from '../css/Out.module.css'
+import { db } from "../firebase"; 
+import { doc, updateDoc } from "firebase/firestore";
 
-const Accept = () => {
+interface AcceptProps {
+    userId: string;
+  }
+
+  const Accept = ({ userId }: AcceptProps) => {
+    const handleAccept = async () => {
+      try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+          approved: true,
+        });
+        console.log("User approved!");
+      } catch (error) {
+        console.error("Error approving user:", error);
+      }
+    };
+  
     return(
-        <div className={styles.Accept}>
+        <button className={styles.Accept} onClick={handleAccept}> 
             Accept
-        </div>
+        </button>
     )
 }
 

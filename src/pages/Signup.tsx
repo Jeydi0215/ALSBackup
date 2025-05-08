@@ -3,7 +3,9 @@ import styles from "../css/Auth.module.css";
 import { useState } from "react";
 import { createUserWithEmailAndPassword, sendEmailVerification, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { doc, setDoc } from "firebase/firestore";
+
 
 import ALS from "../assets/ALS-logo.png";
 const Signup = () => {
@@ -43,8 +45,23 @@ const Signup = () => {
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      //email verification
       await sendEmailVerification(userCredential.user);
       alert("Verification email sent! Please check your inbox.");
+
+      // Save additional user data to Firestore
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      firstName: firstName.trim(),
+      middleInitial: middleInitial.trim() || null,
+      surname: surname.trim(),
+      email: user.email,
+      admin: false,
+      approved: false, // admin must approve
+      createdAt: new Date()
+    });
+
       navigate("/");
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -58,8 +75,25 @@ const Signup = () => {
   const handleGoogleLogin = async () => {
       const provider = new GoogleAuthProvider();
       try {
-        await signInWithPopup(auth, provider);
-        navigate("/Home");
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        const nameParts = user.displayName?.split(" ") || [];
+        const firstName = nameParts[0] || "";
+        const surname = nameParts.slice(1).join(" ") || "";
+
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          firstName: firstName.trim(),
+          middleInitial: middleInitial.trim() || null,
+          surname: surname.trim(),
+          email: user.email,
+          admin: false,
+          approved: false, // admin must approve
+          createdAt: new Date()
+        });
+
+        navigate("/");
       } catch (err) {
         if (err instanceof FirebaseError) {
           setError(err.message);

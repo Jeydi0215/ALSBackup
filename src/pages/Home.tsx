@@ -83,6 +83,7 @@ const Home = ({
         handleLogoutClick={handleLogoutClick}
         handlePageClick={handlePageClick}
         pageNumber={pageNumber}
+        currentUser={currentUser}
       />
       <ClockModal
         handleCameraClick={handleCameraClick}

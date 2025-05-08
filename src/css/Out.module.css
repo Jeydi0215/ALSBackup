@@ -34,14 +34,14 @@
 }
 
 .Accept{
-    border:solid 1px #D42530;
-    background-color: #F99BA1;
-    color:#333;
-}
-.Reject{
     color:#333;
     border:solid 1px #50D280;
     background-color: #DCFCE7;
+}
+.Reject{
+    border:solid 1px #D42530;
+    background-color: #F99BA1;
+    color:#333;
 }
 @media(max-width:431px){
     .Accept, .Reject{
