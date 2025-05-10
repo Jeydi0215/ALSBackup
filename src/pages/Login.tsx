@@ -1,9 +1,13 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "@firebase/auth";
+import { auth, db } from "../firebase.ts";
+import { FirebaseError } from "firebase/app";
 import styles from "../css/Auth.module.css";
 
 import ALS from "../assets/ALS-logo.png";
 import Close from "../assets/close.png";
+import { doc, updateDoc } from "firebase/firestore";
 
 const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => (
   <div className={styles.Forgot}>
@@ -20,8 +24,67 @@ const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => (
 
 const Login = () => {
   const [showForgot, setShowForgot] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const toggleForgotModal = () => setShowForgot((prev) => !prev);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      
+        if (user) {
+          // Update the status to online when the user successfully logs in
+          const userDocRef = doc(db, "users", user.uid);
+          await updateDoc(userDocRef, {
+            status: "online",
+          });
+  
+          // Redirect to Home page
+          navigate("/Home");
+        }
+      
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred.");
+      }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+  
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+  
+      if (user) {
+        // Update the status to online when the user successfully logs in
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+          status: "online",
+        });
+
+        // Redirect to Home page
+        navigate("/Home");
+      }
+    
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred.");
+      }
+    }
+  };
+  
 
   return (
     <div className={styles.Main}>
@@ -31,7 +94,7 @@ const Login = () => {
           <span className={styles.Create}>Daily Time Record</span>
         </div>
 
-        <form>
+        <form onSubmit={handleLogin}>
           <div className={styles.Form_inner}>
             <label htmlFor="email">Email:</label>
             <input
@@ -39,6 +102,8 @@ const Login = () => {
               type="email"
               placeholder="Enter your email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className={styles.Form_inner}>
@@ -48,6 +113,8 @@ const Login = () => {
               type="password"
               placeholder="Enter your password"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
@@ -68,7 +135,7 @@ const Login = () => {
 
           <div className={styles.Form_button}>
             <button type="submit">Log in</button>
-            <button type="button">Log In with Google</button>
+            <button type="button" onClick={handleGoogleLogin}>Log In with Google</button>
           </div>
 
           <span className={styles.Already}>
@@ -77,6 +144,7 @@ const Login = () => {
               Sign up
             </Link>
           </span>
+          {error && <p style={{ color: 'red' }}>{error}</p>}
         </form>
       </div>
 

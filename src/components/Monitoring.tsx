@@ -8,6 +8,7 @@ import Search from '../assets/search.png'
 import Clock from '../assets/clock.png'
 import Coffee from '../assets/coffee.png'
 import Out from '../assets/logout.png'
+import { useMonitoring } from '../context/MonitoringContext';
 
 const Monitoring = () => {
     const [activeButton, setActiveButton] = useState('tracker'); 
@@ -16,8 +17,8 @@ const Monitoring = () => {
         setTableShow( !TableShow )
         setActiveButton(buttonName);
     }
-    
 
+    const { loggedInCount, totalUsers } = useMonitoring();
 
     return(
         <div className={styles.Monitoring}>
@@ -28,7 +29,7 @@ const Monitoring = () => {
                         <span>Logged In</span>
                         <img src={Logged} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>{loggedInCount}/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -36,7 +37,7 @@ const Monitoring = () => {
                         <span>Working</span>
                         <img src={Clock} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -44,7 +45,7 @@ const Monitoring = () => {
                         <span>On Break</span>
                         <img src={Coffee} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
@@ -52,7 +53,7 @@ const Monitoring = () => {
                         <span>Clock Out</span>
                         <img src={Out} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>21/50</span>
+                    <span className={styles.Count}>21/{totalUsers}</span>
                 </div>
             </div>
 

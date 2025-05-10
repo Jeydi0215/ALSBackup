@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { signOut } from "firebase/auth";
+import { auth, db } from "../firebase";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 import styles from "../css/Home.module.css";
 import Nav from "../components/Nav";
@@ -8,6 +12,7 @@ import History from "../components/History";
 import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
+import { doc, updateDoc } from "firebase/firestore";
 
 
 type Props = {
@@ -50,12 +55,44 @@ const Home = ({
     setShowCamera(!showCamera);
   };
 
+  const navigate = useNavigate(); 
+  const handleFirebaseLogout = async () => {
+
+    try {
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.uid);
+
+        // Set status to offline explicitly on logout
+        await updateDoc(userDocRef, {
+          status: "offline",
+        });
+      }
+      await signOut(auth);
+      navigate("/"); 
+      handleLogoutClick(); 
+    } catch (error: unknown) {
+      if (error instanceof Error){
+        console.error("Error logging out: ", error.message);
+      } else{
+        console.error("An unknown error occurred during logout.");
+      }
+    }
+  };
+  
+  const { currentUser } = useAuth();
+  useEffect(() => {
+    if (!currentUser) {
+      navigate("/"); // Redirect to login page if not logged in
+    }
+  }, [currentUser, navigate]);
+
   return (
     <div className={styles.Home}>
       <Nav
         handleLogoutClick={handleLogoutClick}
         handlePageClick={handlePageClick}
         pageNumber={pageNumber}
+        currentUser={currentUser}
       />
       <ClockModal
         handleCameraClick={handleCameraClick}
@@ -75,7 +112,7 @@ const Home = ({
               Unsaved time entries might not be recorded.
             </span>
             <div className={styles.Logout_inner}>
-              <button>Logout</button>
+              <button onClick={handleFirebaseLogout}>Logout</button>
               <button onClick={handleLogoutClick}>Cancel</button>
             </div>
           </div>

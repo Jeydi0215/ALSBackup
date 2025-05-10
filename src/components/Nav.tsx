@@ -1,5 +1,6 @@
 import styles from "../css/Nav.module.css";
 import ALS from "../assets/ALS-logo.png";
+import { useAuth } from "../context/AuthContext";  
 
 type Props = {
   handleLogoutClick: () => void;
@@ -8,6 +9,8 @@ type Props = {
 };
 
 const Nav = ({ handleLogoutClick, pageNumber, handlePageClick }: Props) => {
+  const { currentUser } = useAuth();  // Access the currentUser from context
+
   return (
     <div className={styles.Nav}>
       <div className={styles.Nav_inner}>
@@ -95,7 +98,7 @@ const Nav = ({ handleLogoutClick, pageNumber, handlePageClick }: Props) => {
             </svg>
             <span>About Page</span>
           </li>
-
+          { currentUser?.admin === true && (
           <li onClick={() => handlePageClick(5)}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -115,7 +118,7 @@ const Nav = ({ handleLogoutClick, pageNumber, handlePageClick }: Props) => {
               <path d="M11 12h1v4h1" />
             </svg>
             <span>Monitoring</span>
-          </li>
+          </li> )}
         </ul>
       </div>
 

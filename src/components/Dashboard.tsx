@@ -10,7 +10,7 @@ type Props = {
   handleCameraClick: () => void;
   showCamera: () => void;
 };
-const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
+const Dashboard = ({ handleCameraClick, showCamera }: Props) => {
   const [isResume, setIsResume] = useState(false);
   const handleResume = () => {
     setIsResume(!isResume);
@@ -25,16 +25,39 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
-        timeZone: "America/Los_Angeles", // PST
+        timeZone: "Asia/Manila", // PST
       };
       const timeString = now.toLocaleTimeString("en-US", options);
-      setTime(timeString + " PST");
+      setTime(timeString + " PHT");
     };
 
     updateClock(); // initialize right away
     const interval = setInterval(updateClock, 1000); // update every second
 
     return () => clearInterval(interval); // cleanup on unmount
+  }, []);
+
+  const [weekday, setWeekday] = useState<string>("");
+  const [dayNumber, setDayNumber] = useState<string>("");
+
+  useEffect(() => {
+    const now = new Date();
+  
+    const weekdayOptions: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      timeZone: "Asia/Manila",
+    };
+  
+    const dayOptions: Intl.DateTimeFormatOptions = {
+      day: "numeric",
+      timeZone: "Asia/Manila",
+    };
+  
+    const weekdayString = now.toLocaleDateString("en-PH", weekdayOptions);
+    const dayString = now.toLocaleDateString("en-PH", dayOptions);
+  
+    setWeekday(weekdayString);
+    setDayNumber(dayString);
   }, []);
   return (
     <div className={styles.Dashboard}>
@@ -44,8 +67,8 @@ const Dashboard = ({ handleCameraClick, shwoCamera }: Props) => {
         <div className={styles.Widget_top}>
           <div className={styles.Widget_left}>
             <div className={styles.Date}>
-              <span>Monday</span>
-              <span>10</span>
+              <span>{weekday}</span>
+              <span>{dayNumber}</span>
             </div>
             <span className={styles.Name}>John Neo Lopez</span>
           </div>
