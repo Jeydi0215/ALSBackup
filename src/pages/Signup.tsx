@@ -31,7 +31,7 @@ const Signup = () => {
     if (!firstName.trim() || !surname.trim()) {
       setError("First name and surname are required.");
       return;
-    }    
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -51,17 +51,21 @@ const Signup = () => {
       alert("Verification email sent! Please check your inbox.");
 
       // Save additional user data to Firestore
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      firstName: firstName.trim(),
-      middleInitial: middleInitial.trim() || null,
-      surname: surname.trim(),
-      email: user.email,
-      admin: false,
-      status: "offline",
-      approved: false, // admin must approve
-      createdAt: new Date()
-    });
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        firstName: firstName.trim(),
+        middleInitial: middleInitial.trim() || null,
+        surname: surname.trim(),
+        email: user.email,
+        admin: false,
+        status: "offline",
+        approved: false, // admin must approve
+        phone: "",       // added
+        age: "",         // added
+        gender: "",      // added
+        location: "",    // added
+        createdAt: new Date()
+      });
 
       navigate("/");
     } catch (error: unknown) {
@@ -74,36 +78,40 @@ const Signup = () => {
   };
 
   const handleGoogleLogin = async () => {
-      const provider = new GoogleAuthProvider();
-      try {
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
 
-        const nameParts = user.displayName?.split(" ") || [];
-        const firstName = nameParts[0] || "";
-        const surname = nameParts.slice(1).join(" ") || "";
+      const nameParts = user.displayName?.split(" ") || [];
+      const firstName = nameParts[0] || "";
+      const surname = nameParts.slice(1).join(" ") || "";
 
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
-          firstName: firstName.trim(),
-          middleInitial: middleInitial.trim() || null,
-          surname: surname.trim(),
-          email: user.email,
-          admin: false,
-          status: "offline",
-          approved: false, // admin must approve
-          createdAt: new Date()
-        });
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        firstName: firstName.trim(),
+        middleInitial: middleInitial.trim() || null,
+        surname: surname.trim(),
+        email: user.email,
+        admin: false,
+        status: "offline",
+        approved: false, // admin must approve
+        phone: "",       // added
+        age: "",         // added
+        gender: "",      // added
+        location: "",    // added
+        createdAt: new Date()
+      });
 
-        navigate("/");
-      } catch (err) {
-        if (err instanceof FirebaseError) {
-          setError(err.message);
-        } else {
-          setError("An unexpected error occurred.");
-        }
+      navigate("/");
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred.");
       }
-    };
+    }
+  };
 
 
   return (
