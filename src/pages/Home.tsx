@@ -14,7 +14,6 @@ import About from "../components/About";
 import ClockModal from "../components/ClockModal";
 import { doc, updateDoc } from "firebase/firestore";
 
-
 type Props = {
   handleLogoutClick: () => void;
   isLogout: boolean;
@@ -28,6 +27,19 @@ const Home = ({
   pageNumber,
   handlePageClick,
 }: Props) => {
+  const [showCamera, setShowCamera] = useState(false);
+  const [clockLog, setClockLog] = useState<{ time: string; image: string }[]>(
+    []
+  );
+
+  const handleCameraClick = () => {
+    setShowCamera((prev) => !prev);
+  };
+
+  const handleClockLogSubmit = (image: string, timestamp: string) => {
+    setClockLog((prev) => [...prev, { time: timestamp, image }]);
+  };
+
   const renderPage = () => {
     switch (pageNumber) {
       case 1:
@@ -35,6 +47,7 @@ const Home = ({
           <Dashboard
             handleCameraClick={handleCameraClick}
             showCamera={showCamera}
+            clockLog={clockLog}
           />
         );
       case 2:
@@ -44,12 +57,13 @@ const Home = ({
       case 4:
         return <About />;
       case 5:
-          return <Monitoring />;
+        return <Monitoring />;
       default:
         return <History />;
     }
   };
 
+<<<<<<< Updated upstream
   const [showCamera, setShowCamera] = useState(false);
   const handleCameraClick = () => {
     setShowCamera(!showCamera);
@@ -86,6 +100,8 @@ const Home = ({
     }
   }, [currentUser, navigate]);
 
+=======
+>>>>>>> Stashed changes
   return (
     <div className={styles.Home}>
       <Nav
@@ -94,14 +110,15 @@ const Home = ({
         pageNumber={pageNumber}
         currentUser={currentUser}
       />
+
       <ClockModal
         handleCameraClick={handleCameraClick}
         showCamera={showCamera}
+        onSubmitClockLog={handleClockLogSubmit}
       />
 
-      <div className={styles.Render}>
-      {renderPage()}
-      </div>
+  
+      <div className={styles.Render}>{renderPage()}</div>
 
       {isLogout && (
         <div className={styles.Logout_main}>

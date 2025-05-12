@@ -119,3 +119,32 @@
     padding-bottom: 3rem;
   }
 }
+.CameraModal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.CameraInner {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.ReportTable {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+}
+
+.ReportTable th,
+.ReportTable td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+}
