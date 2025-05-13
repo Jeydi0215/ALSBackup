@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from "react";
+
 import styles from "../css/ClockModal.module.css";
+
+
 import Calendar from "../assets/calendar.png";
 import Close from "../assets/close.png";
 // Import Firebase storage functions
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
-import { imageDb } from "../firebase"; // Import from firebase.tsx in the src folder
+import { imageDb } from "../firebase"; 
 
 type Props = {
   handleCameraClick: () => void;
@@ -153,6 +156,11 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       <div className={styles.ClockModal_inner}>
         <div className={styles.Head}>
           <img onClick={handleCameraClick} className={styles.Close} src={Close} alt="Close" />
+
+
+
+
+
           <div className={styles.Head_inner}>
             <img src={Calendar} alt="Calendar Icon" />
             <span>{new Date().toLocaleString()}</span>
@@ -180,6 +188,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             >
               {capturedImage ? "Retake Photo" : "Take Photo"}
             </button>
+
+
+
+
           </div>
           <button
             className={shareLocation ? styles.Submit : styles.Submit2}

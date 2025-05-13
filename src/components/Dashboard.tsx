@@ -5,16 +5,48 @@ import Resume from "../assets/resume.png";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
 import Filter from "../assets/sort.png";
+import { useAuth } from "../context/AuthContext";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+  onSnapshot
+} from "firebase/firestore";
+import { db } from "../firebase";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
-<<<<<<< Updated upstream
-type Props = {
-  handleCameraClick: () => void;
-  showCamera: () => void;
-};
-const Dashboard = ({ handleCameraClick, showCamera }: Props) => {
-=======
-const Dashboard = ({ handleCameraClick, clockLog }) => {
->>>>>>> Stashed changes
+
+
+interface UserData {
+  firstName: string;
+  surname: string;
+}
+
+interface ClockLogEntry {
+  imageUrl: string;
+  id: string;
+  uid: string;
+  key: string;
+  time?: Timestamp;
+  timeString: string;
+  date: string;
+  image?: string;
+}
+
+interface DashboardProps {
+  handleCameraClick: (key: string) => void; // Now accepts a key parameter
+  showCamera: boolean;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
+  const { currentUser } = useAuth();
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
   const [isResume, setIsResume] = useState(false);
   const [time, setTime] = useState("");
   const [timestamps, setTimestamps] = useState({
@@ -23,17 +55,107 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
     breakOut: "",
     clockOut: ""
   });
-  
-  // Store the latest log for each action type
-  const [actionLogs, setActionLogs] = useState({
-    clockIn: null,
-    breakIn: null,
-    breakOut: null,
-    clockOut: null
-  });
 
-  const handleResume = () => setIsResume(!isResume);
+  const exportToExcel = () => {
+    const weeklyData = getWeeklyReportData();
 
+    const worksheetData = weeklyData.map((entry) => ({
+      Date: entry.date,
+      "Clock In": entry.clockIn,
+      "Break In": entry.breakIn,
+      "Break Out": entry.breakOut,
+      "Clock Out": entry.clockOut,
+      "Working Hours": entry.workingHours,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Weekly Report");
+
+    XLSX.writeFile(workbook, "weekly-report.xlsx");
+  };
+
+
+  const exportToCSV = () => {
+    const weeklyData = getWeeklyReportData();
+
+    const csvData = weeklyData.map((entry) => ({
+      Date: entry.date,
+      "Clock In": entry.clockIn,
+      "Break In": entry.breakIn,
+      "Break Out": entry.breakOut,
+      "Clock Out": entry.clockOut,
+      "Working Hours": entry.workingHours,
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "weekly-report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
+  // Fetch user data on component mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!currentUser) return;
+
+      try {
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          setUserData(userSnap.data() as UserData);
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    fetchUserData();
+  }, [currentUser]);
+
+  // Fetch clock logs
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, "clockLog"),
+      where("uid", "==", currentUser.uid),
+      orderBy("time", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const logs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ClockLogEntry[];
+      setClockLog(logs);
+
+      // Update timestamp widgets
+      const latestEntries = logs.reduce((acc, log) => {
+        if (log.key && !acc[log.key]) {
+          acc[log.key] = log.timeString;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+
+      setTimestamps(prev => ({ ...prev, ...latestEntries }));
+    }, (error) => {
+      console.error("Error listening for clock log changes:", error);
+    });
+
+    // Unsubscribe when component unmounts
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Update real-time clock
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -42,14 +164,9 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
-<<<<<<< Updated upstream
-        timeZone: "Asia/Manila", // PST
-=======
         timeZone: "Asia/Manila",
->>>>>>> Stashed changes
       };
-      const timeString = now.toLocaleTimeString("en-US", options);
-      setTime(timeString + " PHT");
+      setTime(now.toLocaleTimeString("en-US", options) + " PHT");
     };
 
     updateClock();
@@ -57,181 +174,142 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
     return () => clearInterval(interval);
   }, []);
 
-<<<<<<< Updated upstream
-  const [weekday, setWeekday] = useState<string>("");
-  const [dayNumber, setDayNumber] = useState<string>("");
+  const handleResume = () => setIsResume(!isResume);
 
-  useEffect(() => {
-    const now = new Date();
-  
-    const weekdayOptions: Intl.DateTimeFormatOptions = {
-      weekday: "long",
-      timeZone: "Asia/Manila",
-    };
-  
-    const dayOptions: Intl.DateTimeFormatOptions = {
-      day: "numeric",
-      timeZone: "Asia/Manila",
-    };
-  
-    const weekdayString = now.toLocaleDateString("en-PH", weekdayOptions);
-    const dayString = now.toLocaleDateString("en-PH", dayOptions);
-  
-    setWeekday(weekdayString);
-    setDayNumber(dayString);
-  }, []);
-=======
-  // Calculate working hours between clock in and clock out
-  const calculateWorkingHours = (clockInTime, breakInTime, breakOutTime, clockOutTime) => {
-    // Return empty string if no clock in or clock out
+  const calculateWorkingHours = (clockInTime: string, breakInTime: string, breakOutTime: string, clockOutTime: string) => {
     if (!clockInTime || !clockOutTime) return "";
-    
-    // Parse the time strings
-    const parseTimeString = (timeStr) => {
+
+    const parseTime = (timeStr: string) => {
       const [time, period] = timeStr.split(" ");
-      let [hours, minutes] = time.split(":");
-      hours = parseInt(hours);
-      
-      // Convert to 24-hour format
-      if (period === "PM" && hours < 12) {
-        hours += 12;
-      } else if (period === "AM" && hours === 12) {
-        hours = 0;
-      }
-      
-      return { hours, minutes: parseInt(minutes) };
+      let [hours, minutes] = time.split(":").map(Number);
+      if (period === "PM" && hours < 12) hours += 12;
+      if (period === "AM" && hours === 12) hours = 0;
+      return hours * 60 + minutes;
     };
-    
-    // Calculate total minutes
-    const clockIn = parseTimeString(clockInTime);
-    const clockOut = parseTimeString(clockOutTime);
-    
-    let totalMinutes = (clockOut.hours - clockIn.hours) * 60 + (clockOut.minutes - clockIn.minutes);
-    
-    // Subtract break time if available
+
+    const clockIn = parseTime(clockInTime);
+    const clockOut = parseTime(clockOutTime);
+    let totalMinutes = clockOut - clockIn;
+
     if (breakInTime && breakOutTime) {
-      const breakIn = parseTimeString(breakInTime);
-      const breakOut = parseTimeString(breakOutTime);
-      
-      const breakMinutes = (breakOut.hours - breakIn.hours) * 60 + (breakOut.minutes - breakIn.minutes);
-      totalMinutes -= breakMinutes;
+      totalMinutes -= (parseTime(breakOutTime) - parseTime(breakInTime));
     }
-    
-    // Handle negative time (e.g., if clock out is before clock in)
-    if (totalMinutes < 0) return "";
-    
-    // Convert back to hours and minutes
+
+    if (totalMinutes <= 0) return "0m";
+
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    
-    // Format as string
-    return `${hours}h ${minutes}m`;
+    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
   };
 
-  // Camera button click handler
-  const handleCameraButtonClick = (e, key) => {
-    // Prevent any default browser behavior that might cause form submission
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
+  const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
+    if (!isButtonEnabled(key)) {
+      alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
+      return;
     }
-    
-    const now = new Date();
-    const timeString = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Asia/Manila"
-    });
-    
-    // Update the timestamps display
-    setTimestamps(prev => ({ ...prev, [key]: timeString }));
-    
-    // Store this information for the weekly report
-    setActionLogs(prev => ({
-      ...prev,
-      [key]: {
-        time: now,
-        timeString: timeString,
-        key: key
-      }
-    }));
-    
-    // Call the parent component's handler with the key
-    if (typeof handleCameraClick === 'function') {
-      handleCameraClick(key);
-    }
-    
-    // Return false to prevent any potential form submission
-    return false;
+
+    e.preventDefault();
+    e.stopPropagation();
+    handleCameraClick(key);
   };
-  
-  // Group logs by date for the weekly report
+
   const getWeeklyReportData = () => {
-    // Get dates from the clock log
-    const dates = {};
-    
-    if (clockLog && clockLog.length > 0) {
-      clockLog.forEach(log => {
-        if (!log.time) return;
-        
-        const logDate = new Date(log.time);
-        if (isNaN(logDate.getTime())) return;
-        
-        const dateStr = logDate.toLocaleDateString("en-US", {
-          month: "long",
-          day: "2-digit",
-          year: "numeric"
-        });
-        
-        if (!dates[dateStr]) {
-          const today = new Date().toLocaleDateString("en-US", {
-            month: "long",
-            day: "2-digit",
-            year: "numeric"
-          });
-          
-          // If it's today, use the current timestamps
-          const isToday = dateStr === today;
-          
-          dates[dateStr] = {
-            date: dateStr,
-            image: null,
-            // Initialize with the current state values for today or empty for other days
-            clockIn: isToday ? actionLogs.clockIn?.timeString || "" : "",
-            breakIn: isToday ? actionLogs.breakIn?.timeString || "" : "",
-            breakOut: isToday ? actionLogs.breakOut?.timeString || "" : "",
-            clockOut: isToday ? actionLogs.clockOut?.timeString || "" : "",
-            workingHours: ""
-          };
-        }
-        
-        // Add the image
-        if (log.image) {
-          dates[dateStr].image = log.image;
-        }
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 6); // Includes today + 6 previous days
+
+    const dates: Record<string, any> = {};
+
+    clockLog.forEach(log => {
+      if (!log.time || !log.key || !log.timeString) return;
+
+      const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+      const logDateStr = logDateObj.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
       });
-    }
-    
-    // Calculate working hours for each date
-    Object.values(dates).forEach(day => {
+
+      // Only include logs from the last 7 days
+      if (logDateObj < sevenDaysAgo || logDateObj > now) return;
+
+      if (!dates[logDateStr]) {
+        dates[logDateStr] = {
+          date: logDateStr,
+          image: null,
+          clockIn: "",
+          breakIn: "",
+          breakOut: "",
+          clockOut: "",
+          workingHours: ""
+        };
+      }
+
+      if (["clockIn", "breakIn", "breakOut", "clockOut"].includes(log.key) &&
+        !dates[logDateStr][log.key]) {
+        dates[logDateStr][log.key] = log.timeString;
+        if (log.key === "clockIn" && log.imageUrl) {
+          dates[logDateStr].image = log.imageUrl;
+        }
+      }
+    });
+
+    Object.values(dates).forEach((day: any) => {
       day.workingHours = calculateWorkingHours(
-        day.clockIn, 
-        day.breakIn, 
-        day.breakOut, 
+        day.clockIn,
+        day.breakIn,
+        day.breakOut,
         day.clockOut
       );
     });
-    
-    // Convert to array and sort
-    return Object.values(dates).sort((a, b) => {
-      return new Date(b.date) - new Date(a.date);
-    });
+
+    // Sort the grouped days from newest to oldest
+    return Object.values(dates).sort((a: any, b: any) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
   };
-  
+
+  const isButtonEnabled = (key: string): boolean => {
+    const todayStr = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric",
+    });
+
+    const todayLogs = clockLog.filter(log => log.date === todayStr);
+    const hasBreakIn = todayLogs.some(log => log.key === "breakIn");
+    const hasBreakOut = todayLogs.some(log => log.key === "breakOut");
+    const hasClockOut = todayLogs.some(log => log.key === "clockOut");
+
+    // If already clocked out, disable all buttons
+    if (hasClockOut) return false;
+
+    switch (key) {
+      case "clockIn":
+        return !todayLogs.some(log => log.key === "clockIn");
+
+      case "breakIn":
+        return todayLogs.some(log => log.key === "clockIn") &&
+          !todayLogs.some(log => log.key === "breakIn");
+
+      case "breakOut":
+        // Can break out only if broken in and not already broken out
+        return todayLogs.some(log => log.key === "breakIn") &&
+          !todayLogs.some(log => log.key === "breakOut");
+
+      case "clockOut":
+        return todayLogs.some(log => log.key === "clockIn") &&
+          !todayLogs.some(log => log.key === "clockOut") &&
+          (!hasBreakIn || hasBreakOut);
+
+      default:
+        return false;
+    }
+  };
+
+
   const weeklyReportData = getWeeklyReportData();
 
->>>>>>> Stashed changes
   return (
     <div className={styles.Dashboard}>
       <h1 className={styles.Dash_title}>Dashboard</h1>
@@ -240,30 +318,21 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
         <div className={styles.Widget_top}>
           <div className={styles.Widget_left}>
             <div className={styles.Date}>
-<<<<<<< Updated upstream
-              <span>{weekday}</span>
-              <span>{dayNumber}</span>
-=======
               <span>{new Date().toLocaleDateString("en-US", { weekday: "long" })}</span>
               <span>{new Date().getDate()}</span>
->>>>>>> Stashed changes
             </div>
-            <span className={styles.Name}>John Neo Lopez</span>
+            <span className={styles.Name}>{userData?.firstName} {userData?.surname}</span>
           </div>
 
           <div className={styles.Widget_right}>
             <div className={styles.Pause_con}>
-              {isResume ? (
-                <div className={styles.Pause} onClick={handleResume}>
-                  <span>Pause</span>
-                  <img src={Resume} alt="Resume Icon" />
-                </div>
-              ) : (
-                <div className={styles.Resume} onClick={handleResume}>
-                  <span>Resume</span>
-                  <img src={Pause} alt="Pause Icon" />
-                </div>
-              )}
+              <div
+                className={isResume ? styles.Pause : styles.Resume}
+                onClick={handleResume}
+              >
+                <span>{isResume ? "Pause" : "Resume"}</span>
+                <img src={isResume ? Resume : Pause} alt={isResume ? "Resume Icon" : "Pause Icon"} />
+              </div>
             </div>
             <span className={styles.Time}>{time}</span>
           </div>
@@ -275,7 +344,7 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
             { label: "Break In", key: "breakIn" },
             { label: "Break Out", key: "breakOut" },
             { label: "Clock Out", key: "clockOut" }
-          ].map(({ label, key }, idx) => (
+          ].map(({ label, key }) => (
             <div className={styles.Clockin1} key={key}>
               <div className={styles.Clock_widget}>
                 <div className={styles.Clock_inner}>
@@ -284,33 +353,15 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
                 </div>
                 <span className={styles.Time_widget}>{timestamps[key]}</span>
               </div>
-              {/* Camera button with explicit event prevention */}
               <img
                 className={styles.Camera}
                 src={Camera}
                 alt="camera"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCameraButtonClick(e, key);
-                  return false; // This helps prevent any form submission
-                }}
-                onMouseDown={(e) => e.preventDefault()} // Prevent mousedown default actions
+                onClick={(e) => handleCameraButtonClick(e, key)}
+                onMouseDown={(e) => e.preventDefault()}
                 style={{
-                  opacity:
-                    (key === "clockIn") ||
-                    (key === "breakIn" && timestamps.clockIn) ||
-                    (key === "breakOut" && timestamps.breakIn) ||
-                    (key === "clockOut" && timestamps.breakOut)
-                      ? 1
-                      : 0.5,
-                  pointerEvents:
-                    (key === "clockIn") ||
-                    (key === "breakIn" && timestamps.clockIn) ||
-                    (key === "breakOut" && timestamps.breakIn) ||
-                    (key === "clockOut" && timestamps.breakOut)
-                      ? "auto"
-                      : "none"
+                  opacity: isButtonEnabled(key) ? 1 : 0.5,
+                  cursor: isButtonEnabled(key) ? "pointer" : "not-allowed"
                 }}
               />
             </div>
@@ -321,13 +372,19 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
           <span className={styles.ReportText}>Weekly Report</span>
+          <button onClick={exportToCSV} className={styles.ExportButton}>
+            Export to CSV
+          </button>
+          <button onClick={exportToExcel} className={styles.ExportButton}>
+            Export to Excel
+          </button>
           <div className={styles.Filter}>
             <img src={Filter} alt="Filter icon" />
             <span>Filter by date</span>
           </div>
         </div>
 
-        {clockLog && clockLog.length > 0 ? (
+        {clockLog.length > 0 ? (
           <div className={styles.WeeklyTable}>
             <table>
               <thead>
@@ -351,19 +408,18 @@ const Dashboard = ({ handleCameraClick, clockLog }) => {
                     <td>{day.clockOut}</td>
                     <td>{day.workingHours}</td>
                     <td>
-                      {day.image && (
+                      {day.image ? (
                         <img
                           src={day.image}
-                          alt={`log-${index}`}
+                          alt="Status"
                           style={{
                             width: "60px",
                             height: "60px",
                             borderRadius: "8px",
-                            objectFit: "cover",
+                            objectFit: "cover"
                           }}
                         />
-                      )}
-                    </td>
+                      ) : "—"}</td>
                   </tr>
                 ))}
               </tbody>

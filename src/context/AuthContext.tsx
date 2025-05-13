@@ -3,7 +3,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
-type ExtendedUser = User & {
+export type ExtendedUser = User & {
   admin?: boolean;
   approved?: boolean;
 };
