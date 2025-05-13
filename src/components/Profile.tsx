@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, firebaseStorage } from "../firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import styles from "../css/Profile.module.css";
 import Avatar from "../assets/avatar.png";
@@ -30,11 +31,26 @@ type ProfileData = {
   age?: string;
   gender?: string;
   location?: string;
+  avatar?: string;
   createdAt: Date | { seconds: number; nanoseconds: number }; // Firestore timestamp
 };
 
 
 const Profile = () => {
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    const storageRef = ref(firebaseStorage, `avatars/${currentUser.uid}`);
+    await uploadBytes(storageRef, file);
+
+    const downloadURL = await getDownloadURL(storageRef);
+    setProfileData((prev) =>
+      prev ? { ...prev, avatar: downloadURL } : null
+    );
+  };
+
 
 
   const { currentUser } = useAuth();
@@ -89,6 +105,7 @@ const Profile = () => {
       age: profileData.age || "",
       gender: profileData.gender || "",
       location: profileData.location || "",
+      avatar: profileData.avatar || "",
     });
     setIsEditing(false);
   };
@@ -113,7 +130,24 @@ const Profile = () => {
       <div className={styles.Profile_inner}>
         <div className={styles.Profile_top}>
           <div className={styles.Profile_picture}>
-            <img src={Avatar} alt="Profile Picture" />
+            <label htmlFor="avatarUpload">
+              <img
+                src={profileData?.avatar || Avatar}
+                alt="Profile"
+                className={styles.AvatarImage}
+                style={{ cursor: isEditing ? "pointer" : "default" }}
+              />
+            </label>
+            {isEditing && (
+              <input
+                type="file"
+                id="avatarUpload"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                style={{ display: "none" }}
+              />
+            )}
+
             <span>{profileData?.firstName} {profileData?.surname}</span>
             <span>{profileData?.email}</span>
           </div>
@@ -128,10 +162,10 @@ const Profile = () => {
                 </button>
               ) : (
                 <div>
-                  <button className={styles.Save} style={{marginRight:5}} onClick={handleSave}>
+                  <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
                     <span>Save</span>
                   </button>
-                  <button className={styles.Cancel}  onClick={() => setIsEditing(false)}>
+                  <button className={styles.Cancel} onClick={() => setIsEditing(false)}>
                     <span>Cancel</span>
                   </button>
                 </div>
