@@ -82,6 +82,7 @@ const Signup = () => {
         age: "",         // added
         gender: "",      // added
         location: "",    // added
+        avatar: "",
         createdAt: new Date()
       });
 
@@ -124,6 +125,7 @@ const Signup = () => {
         age: "",         // added
         gender: "",      // added
         location: "",    // added
+        avatar: "",
         createdAt: new Date()
       });
 

@@ -1,73 +1,184 @@
-import styles from '../css/Summary.module.css'
+import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+import styles from "../css/Summary.module.css";
+import { useAuth } from "../context/AuthContext";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
+
+interface ClockLogEntry {
+  id: string;
+  uid: string;
+  key: string;
+  time?: Timestamp;
+  timeString: string;
+  date: string;
+}
 
 const Summary = () => {
-    return(
-        <div className={styles.Summary}>
-            <div className={styles.Summary_top}>
-                <select name="" id="">
-                    <option value="This week">This Week</option>
-                </select>
+  const { currentUser } = useAuth();
+  const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
+  const [filter, setFilter] = useState<"week" | "month">("week");
 
-                <button>Export</button>
-            </div>
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!currentUser) return;
 
-            <table>
-  <thead>
-    <tr>
+      const logsRef = query(
+        collection(db, "clockLog"),
+        where("uid", "==", currentUser.uid),
+        orderBy("time", "desc")
+      );
 
-      <th>Date</th>
-      <th>Clock In</th>
-      <th>Clock Out</th>
-      <th>Break Time</th>
-      <th>Work Time</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
+      const snapshot = await getDocs(logsRef);
+      const logs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ClockLogEntry[];
 
-      <td>2025-05-05</td>
-      <td>08:00 AM</td>
-      <td>04:30 PM</td>
-      <td>00:30</td>
-      <td>08:00</td>
-    </tr>
-    <tr>
+      setClockLog(logs);
+    };
 
-      <td>2025-05-06</td>
-      <td>08:00 AM</td>
-      <td>05:00 PM</td>
-      <td>01:00</td>
-      <td>08:00</td>
-    </tr>
-    <tr>
+    fetchLogs();
+  }, [currentUser]);
 
-      <td>2025-05-07</td>
-      <td>09:00 AM</td>
-      <td>05:00 PM</td>
-      <td>00:30</td>
-      <td>07:30</td>
-    </tr>
-    <tr>
+  const getFilteredLogs = () => {
+    const now = new Date();
+    const startDate = new Date(now);
 
-      <td>2025-05-08</td>
-      <td>08:30 AM</td>
-      <td>04:30 PM</td>
-      <td>00:45</td>
-      <td>07:15</td>
-    </tr>
-    <tr>
+    if (filter === "week") {
+      startDate.setDate(now.getDate() - 6);
+    } else {
+      startDate.setMonth(now.getMonth() - 1);
+    }
 
-      <td>2025-05-09</td>
-      <td>08:00 AM</td>
-      <td>03:30 PM</td>
-      <td>00:30</td>
-      <td>07:00</td>
-    </tr>
-  </tbody>
-            </table>
+    const filtered = clockLog.filter(log => {
+      const logDate = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time!);
+      return logDate >= startDate && logDate <= now;
+    });
 
-        </div>
-    )
-}
+    // Group by date and assemble a daily summary
+    const summaryMap: Record<string, any> = {};
+
+    filtered.forEach(log => {
+      const logDate = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time!);
+      const dateStr = logDate.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      if (!summaryMap[dateStr]) {
+        summaryMap[dateStr] = {
+          date: dateStr,
+          clockIn: "",
+          clockOut: "",
+          breakIn: "",
+          breakOut: "",
+          workTime: "",
+          breakTime: ""
+        };
+      }
+
+      if (["clockIn", "clockOut", "breakIn", "breakOut"].includes(log.key)) {
+        summaryMap[dateStr][log.key] = log.timeString;
+      }
+    });
+
+    const parseMinutes = (str: string) => {
+      const [time, period] = str.split(" ");
+      let [h, m] = time.split(":").map(Number);
+      if (period === "PM" && h < 12) h += 12;
+      if (period === "AM" && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    Object.values(summaryMap).forEach((day: any) => {
+      const { clockIn, clockOut, breakIn, breakOut } = day;
+      if (clockIn && clockOut) {
+        let workMins = parseMinutes(clockOut) - parseMinutes(clockIn);
+        if (breakIn && breakOut) {
+          workMins -= (parseMinutes(breakOut) - parseMinutes(breakIn));
+          day.breakTime = formatMins(parseMinutes(breakOut) - parseMinutes(breakIn));
+        } else {
+          day.breakTime = "00:00";
+        }
+        day.workTime = formatMins(workMins);
+      }
+    });
+
+    return Object.values(summaryMap)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5); // latest 5
+  };
+
+  const formatMins = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
+  const handleExport = () => {
+    const data = getFilteredLogs();
+    const worksheet = XLSX.utils.json_to_sheet(data.map(row => ({
+      Date: row.date,
+      "Clock In": row.clockIn,
+      "Clock Out": row.clockOut,
+      "Break Time": row.breakTime,
+      "Work Time": row.workTime
+    })));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Summary");
+    XLSX.writeFile(workbook, "summary.xlsx");
+  };
+
+  const summary = getFilteredLogs();
+
+  return (
+    <div className={styles.Summary}>
+      <div className={styles.Summary_top}>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as "week" | "month")}
+        >
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+        </select>
+
+        <button onClick={handleExport}>Export</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Clock In</th>
+            <th>Clock Out</th>
+            <th>Break Time</th>
+            <th>Work Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.map((row, idx) => (
+            <tr key={idx}>
+              <td>{row.date}</td>
+              <td>{row.clockIn}</td>
+              <td>{row.clockOut}</td>
+              <td>{row.breakTime}</td>
+              <td>{row.workTime}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 export default Summary;
