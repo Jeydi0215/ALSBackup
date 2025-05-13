@@ -31,6 +31,7 @@ interface ClockLogEntry {
   timeString: string;
   date: string;
   image?: string;
+  status?: string;
 }
 
 const Home = ({
@@ -69,7 +70,10 @@ const Home = ({
           day: "2-digit",
           year: "numeric",
         }),
-        imageUrl: imageUrl // Store the Firebase Storage URL
+        imageUrl: imageUrl, // Store the Firebase Storage URL
+        status: "pending",
+        userFirstName: currentUser.userFirstName,
+        userSurname: currentUser.userSurname
       });
     } catch (error) {
       console.error("Error saving clock log:", error);
@@ -144,7 +148,8 @@ const Home = ({
       timeString: doc.data().timeString,
       date: doc.data().date,
       imageUrl: doc.data().imageUrl || null,
-      image: doc.data().image || null
+      image: doc.data().image || null,
+      status: doc.data().status || "Pending",
     })) as ClockLogEntry[];
     setClockLog(logs);
   });
