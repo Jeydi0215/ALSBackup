@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import styles from "../css/Dashboard.module.css";
-import Pause from "../assets/pause.png";
-import Resume from "../assets/resume.png";
+// import Pause from "../assets/pause.png";
+// import Resume from "../assets/resume.png";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
 import Filter from "../assets/sort.png";
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const { currentUser } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
-  const [isResume, setIsResume] = useState(false);
+  // const [isResume, setIsResume] = useState(false);
   const [time, setTime] = useState("");
   const [timestamps, setTimestamps] = useState({
     clockIn: "",
@@ -174,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleResume = () => setIsResume(!isResume);
+  // const handleResume = () => setIsResume(!isResume);
 
   const calculateWorkingHours = (clockInTime: string, breakInTime: string, breakOutTime: string, clockOutTime: string) => {
     if (!clockInTime || !clockOutTime) return "";
@@ -326,13 +326,13 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
           <div className={styles.Widget_right}>
             <div className={styles.Pause_con}>
-              <div
+              {/* <div
                 className={isResume ? styles.Pause : styles.Resume}
                 onClick={handleResume}
               >
                 <span>{isResume ? "Pause" : "Resume"}</span>
                 <img src={isResume ? Resume : Pause} alt={isResume ? "Resume Icon" : "Pause Icon"} />
-              </div>
+              </div> */}
             </div>
             <span className={styles.Time}>{time}</span>
           </div>
