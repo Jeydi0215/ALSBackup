@@ -1,20 +1,22 @@
 import styles from "../css/Nav.module.css";
 import ALS from "../assets/ALS-logo.png";
-import { useAuth } from "../context/AuthContext";  
+import { useAuth, ExtendedUser } from "../context/AuthContext";  
 
 type Props = {
   handleLogoutClick: () => void;
   pageNumber: number;
-  handlePageClick: () => void;
+  handlePageClick: (value: number) => void;
+  currentUser: ExtendedUser | null;
 };
 
-const Nav = ({ handleLogoutClick, pageNumber, handlePageClick }: Props) => {
+const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
   const { currentUser } = useAuth();  // Access the currentUser from context
 
   return (
     <div className={styles.Nav}>
       <div className={styles.Nav_inner}>
         <img className={styles.Logo} src={ALS} alt="als logo" />
+        {currentUser?.admin && <p>You're an admin</p>}
         <ul>
           <li onClick={() => handlePageClick(1)}>
             <svg
