@@ -6,6 +6,8 @@ import { auth, db } from "../firebase";
 export type ExtendedUser = User & {
   admin?: boolean;
   approved?: boolean;
+  userFirstName?: string;
+  userSurname?: string;
 };
 
 type AuthContextType = {
@@ -31,6 +33,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             ...user,
             admin: userData.admin,
             approved: userData.approved,
+            userFirstName: userData.firstName,
+            userSurname: userData.surname
           });
         } else {
           setCurrentUser(user); // fallback in case no doc exists

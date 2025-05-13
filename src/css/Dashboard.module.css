@@ -268,8 +268,30 @@
   transition: background-color 0.2s ease;
 }
 
+.ApproveButton {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
 .ExportButton:hover {
   background-color: #45a049;
+}
+
+.RejectButton{
+    background-color: #F99BA1;
+    color:#333;
+    border: none;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
 }
 
 @media(min-width:768px) and (max-width:1024px){

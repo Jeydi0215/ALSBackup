@@ -14,7 +14,8 @@ import {
   where,
   orderBy,
   Timestamp,
-  onSnapshot
+  onSnapshot,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Papa from "papaparse";
@@ -36,12 +37,31 @@ interface ClockLogEntry {
   timeString: string;
   date: string;
   image?: string;
+  status?: string;
+  userFirstName?: string;
+  userSurname?: string;
 }
 
 interface DashboardProps {
-  handleCameraClick: (key: string) => void; // Now accepts a key parameter
+  handleCameraClick: (key: string) => void; 
   showCamera: boolean;
 }
+
+interface WeeklyReportDay {
+  id?: string;
+  date: string;
+  clockIn?: string;
+  breakIn?: string;
+  breakOut?: string;
+  clockOut?: string;
+  workingHours: string;
+  status?: string;
+  userId?: string;
+  logIds: string[];
+  employeeName?: string;
+}
+
+
 
 const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const { currentUser } = useAuth();
@@ -55,50 +75,88 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     breakOut: "",
     clockOut: ""
   });
+  const [isProcessing, setIsProcessing] = useState(false);
+
 
   const exportToExcel = () => {
-    const weeklyData = getWeeklyReportData();
+  const weeklyData = getWeeklyReportData();
 
-    const worksheetData = weeklyData.map((entry) => ({
-      Date: entry.date,
-      "Clock In": entry.clockIn,
-      "Break In": entry.breakIn,
-      "Break Out": entry.breakOut,
-      "Clock Out": entry.clockOut,
-      "Working Hours": entry.workingHours,
-    }));
+  const worksheetData = weeklyData.map((entry) => ({
+    // Include employee name for admin exports
+    ...(currentUser?.admin && { 
+      "Employee": `${clockLog.find(log => log.uid === entry.userId)?.userFirstName || "Unknown"} ${clockLog.find(log => log.uid === entry.userId)?.userSurname || "User"}` 
+    }),
+    "Date": entry.date,
+    "Clock In": entry.clockIn || "-",
+    "Break In": entry.breakIn || "-",
+    "Break Out": entry.breakOut || "-",
+    "Clock Out": entry.clockOut || "-",
+    "Working Hours": entry.workingHours || "-",
+    "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+    // Include additional metadata if needed
+    ...(currentUser?.admin && {
+      "Employee ID": entry.userId || "-",
+      "Total Logs": entry.logIds?.length || 0
+    })
+  }));
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Weekly Report");
+  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Time Report");
 
-    XLSX.writeFile(workbook, "weekly-report.xlsx");
-  };
+  // Generate filename with current date
+  const today = new Date().toISOString().split('T')[0];
+  const fileName = currentUser?.admin 
+    ? `employee_time_report_${today}.xlsx` 
+    : `my_time_report_${today}.xlsx`;
 
+  XLSX.writeFile(workbook, fileName);
+};
 
-  const exportToCSV = () => {
-    const weeklyData = getWeeklyReportData();
+const exportToCSV = () => {
+  const weeklyData = getWeeklyReportData();
 
-    const csvData = weeklyData.map((entry) => ({
-      Date: entry.date,
-      "Clock In": entry.clockIn,
-      "Break In": entry.breakIn,
-      "Break Out": entry.breakOut,
-      "Clock Out": entry.clockOut,
-      "Working Hours": entry.workingHours,
-    }));
+  const csvData = weeklyData.map((entry) => ({
+    // Include employee name for admin exports
+    ...(currentUser?.admin && { 
+      "Employee": `${clockLog.find(log => log.uid === entry.userId)?.userFirstName || "Unknown"} ${clockLog.find(log => log.uid === entry.userId)?.userSurname || "User"}` 
+    }),
+    "Date": entry.date,
+    "Clock In": entry.clockIn || "-",
+    "Break In": entry.breakIn || "-",
+    "Break Out": entry.breakOut || "-",
+    "Clock Out": entry.clockOut || "-",
+    "Working Hours": entry.workingHours || "-",
+    "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+    // Include additional metadata if needed
+    ...(currentUser?.admin && {
+      "Employee ID": entry.userId || "-",
+      "Total Entries": entry.logIds?.length || 0
+    })
+  }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+  const csv = Papa.unparse(csvData, {
+    quotes: true, // Wrap values in quotes
+    header: true, // Include headers
+    delimiter: "," // Standard CSV delimiter
+  });
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "weekly-report.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  // Generate filename with current date
+  const today = new Date().toISOString().split('T')[0];
+  const fileName = currentUser?.admin 
+    ? `employee_time_report_${today}.csv` 
+    : `my_time_report_${today}.csv`;
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 
   // Fetch user data on component mount
@@ -121,37 +179,50 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     fetchUserData();
   }, [currentUser]);
 
-  // Fetch clock logs
   useEffect(() => {
     if (!currentUser) return;
 
-    const q = query(
-      collection(db, "clockLog"),
-      where("uid", "==", currentUser.uid),
-      orderBy("time", "desc")
-    );
+    let q;
+
+    if (currentUser.admin) {
+      // Admin sees all pending logs and their own logs
+      q = query(
+        collection(db, "clockLog"),
+        where("status", "in", ["pending", "approved", "rejected"]),
+        orderBy("time", "desc")
+      );
+    } else {
+      // Regular user sees only their own logs
+      q = query(
+        collection(db, "clockLog"),
+        where("uid", "==", currentUser.uid),
+        orderBy("time", "desc")
+      );
+    }
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const logs = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ClockLogEntry[];
+      
       setClockLog(logs);
 
-      // Update timestamp widgets
-      const latestEntries = logs.reduce((acc, log) => {
-        if (log.key && !acc[log.key]) {
-          acc[log.key] = log.timeString;
-        }
-        return acc;
-      }, {} as Record<string, string>);
+      // Only update timestamps for non-admin users
+      if (!currentUser.admin) {
+        const latestEntries = logs.reduce((acc, log) => {
+          if (log.key && !acc[log.key]) {
+            acc[log.key] = log.timeString;
+          }
+          return acc;
+        }, {} as Record<string, string>);
 
-      setTimestamps(prev => ({ ...prev, ...latestEntries }));
+        setTimestamps(prev => ({ ...prev, ...latestEntries }));
+      }
     }, (error) => {
-      console.error("Error listening for clock log changes:", error);
+      console.error("Error fetching logs:", error);
     });
 
-    // Unsubscribe when component unmounts
     return () => unsubscribe();
   }, [currentUser]);
 
@@ -213,61 +284,117 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     handleCameraClick(key);
   };
 
-  const getWeeklyReportData = () => {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 6); // Includes today + 6 previous days
+  const getWeeklyReportData = (): WeeklyReportDay[] => {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 6);
 
-    const dates: Record<string, any> = {};
+  const dates: Record<string, WeeklyReportDay> = {};
 
-    clockLog.forEach(log => {
-      if (!log.time || !log.key || !log.timeString) return;
+  // Group logs by user and date
+  const userDateGroups: Record<string, ClockLogEntry[]> = {};
 
-      const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
-      const logDateStr = logDateObj.toLocaleDateString("en-US", {
-        month: "long",
-        day: "2-digit",
-        year: "numeric",
-      });
+  clockLog.forEach(log => {
+    if (!log.time || !log.key || !log.timeString) return;
+    
+    const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+    const logDateStr = logDateObj.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric",
+    });
 
-      // Only include logs from the last 7 days
-      if (logDateObj < sevenDaysAgo || logDateObj > now) return;
+    if (logDateObj < sevenDaysAgo || logDateObj > now) return;
 
-      if (!dates[logDateStr]) {
-        dates[logDateStr] = {
-          date: logDateStr,
-          image: null,
-          clockIn: "",
-          breakIn: "",
-          breakOut: "",
-          clockOut: "",
-          workingHours: ""
-        };
-      }
+    const groupKey = currentUser?.admin 
+      ? `${log.uid}_${logDateStr}` 
+      : logDateStr;
 
-      if (["clockIn", "breakIn", "breakOut", "clockOut"].includes(log.key) &&
-        !dates[logDateStr][log.key]) {
-        dates[logDateStr][log.key] = log.timeString;
-        if (log.key === "clockIn" && log.imageUrl) {
-          dates[logDateStr].image = log.imageUrl;
+    if (!userDateGroups[groupKey]) {
+      userDateGroups[groupKey] = [];
+    }
+    userDateGroups[groupKey].push(log);
+  });
+
+  // Process each day's logs
+  Object.entries(userDateGroups).forEach(([key, dayLogs]) => {
+    const dateKey = currentUser?.admin ? key.split('_')[1] : key;
+    const userId = currentUser?.admin ? key.split('_')[0] : currentUser?.uid;
+
+    if (!dates[dateKey]) {
+      dates[dateKey] = {
+        date: dateKey,
+        workingHours: "",
+        userId,
+        logIds: [],
+        employeeName: currentUser?.admin 
+          ? `${dayLogs[0]?.userFirstName || ''} ${dayLogs[0]?.userSurname || ''}`.trim() 
+          : undefined
+      };
+    }
+
+    dayLogs.forEach(log => {
+      dates[dateKey].logIds.push(log.id);
+      
+      if (["clockIn", "breakIn", "breakOut", "clockOut"].includes(log.key)) {
+        if (!dates[dateKey][log.key]) {
+          dates[dateKey][log.key] = log.timeString;
+        }
+        // Use clockIn status for the whole day
+        if (log.key === "clockIn" && log.status) {
+          dates[dateKey].status = log.status;
         }
       }
     });
+  });
 
-    Object.values(dates).forEach((day: any) => {
-      day.workingHours = calculateWorkingHours(
-        day.clockIn,
-        day.breakIn,
-        day.breakOut,
-        day.clockOut
-      );
-    });
-
-    // Sort the grouped days from newest to oldest
-    return Object.values(dates).sort((a: any, b: any) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+  // Calculate working hours
+  Object.values(dates).forEach(day => {
+    day.workingHours = calculateWorkingHours(
+      day.clockIn || "",
+      day.breakIn || "",
+      day.breakOut || "",
+      day.clockOut || ""
     );
-  };
+  });
+
+  return Object.values(dates).sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+};
+
+// Update approval/rejection handlers
+const handleApprove = async (logIds: string[]) => {
+  setIsProcessing(true);
+  try {
+    const batch = writeBatch(db);
+    logIds.forEach(logId => {
+      const logRef = doc(db, "clockLog", logId);
+      batch.update(logRef, { status: "approved" });
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error("Error approving logs:", error);
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+const handleReject = async (logIds: string[]) => {
+  setIsProcessing(true);
+  try {
+    const batch = writeBatch(db);
+    logIds.forEach(logId => {
+      const logRef = doc(db, "clockLog", logId);
+      batch.update(logRef, { status: "rejected" });
+    });
+    await batch.commit();
+  } catch (error) {
+    console.error("Error rejecting logs:", error);
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const isButtonEnabled = (key: string): boolean => {
     const todayStr = new Date().toLocaleDateString("en-US", {
@@ -351,7 +478,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                   <span>{label}</span>
                   <img className={styles.Eye} src={Eye} alt="eye" />
                 </div>
-                <span className={styles.Time_widget}>{timestamps[key]}</span>
+                <span className={styles.Time_widget}>{timestamps[key] || "-"}</span>
               </div>
               <img
                 className={styles.Camera}
@@ -371,13 +498,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
-          <span className={styles.ReportText}>Weekly Report</span>
-          <button onClick={exportToCSV} className={styles.ExportButton}>
-            Export to CSV
-          </button>
-          <button onClick={exportToExcel} className={styles.ExportButton}>
-            Export to Excel
-          </button>
+          <span className={styles.ReportText}>
+            {currentUser?.admin ? "Employee Time Logs" : "Weekly Report"}
+          </span>
+          <div>
+            <button style={{marginRight: 5}}onClick={exportToCSV} className={styles.ExportButton}>
+              Export to CSV
+            </button>
+            <button onClick={exportToExcel} className={styles.ExportButton}>
+              Export to Excel
+            </button>
+          </div>
           <div className={styles.Filter}>
             <img src={Filter} alt="Filter icon" />
             <span>Filter by date</span>
@@ -385,51 +516,93 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         </div>
 
         {clockLog.length > 0 ? (
-          <div className={styles.WeeklyTable}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Clock In</th>
-                  <th>Break In</th>
-                  <th>Break Out</th>
-                  <th>Clock Out</th>
-                  <th>Working Hours</th>
-                  <th>Status (Photo)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weeklyReportData.map((day, index) => (
-                  <tr key={index}>
-                    <td>{day.date}</td>
-                    <td>{day.clockIn}</td>
-                    <td>{day.breakIn}</td>
-                    <td>{day.breakOut}</td>
-                    <td>{day.clockOut}</td>
-                    <td>{day.workingHours}</td>
-                    <td>
-                      {day.image ? (
-                        <img
-                          src={day.image}
-                          alt="Status"
-                          style={{
-                            width: "60px",
-                            height: "60px",
-                            borderRadius: "8px",
-                            objectFit: "cover"
-                          }}
-                        />
-                      ) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p style={{ padding: "1rem", color: "#888" }}>
-            No clock-in records yet. Use the camera button to add one.
-          </p>
-        )}
+  <div className={styles.WeeklyTable}>
+    <table>
+      <thead>
+        <tr>
+          {currentUser?.admin && <th>Employee</th>}
+          <th>Date</th>
+          <th>Clock In</th>
+          <th>Break In</th>
+          <th>Break Out</th>
+          <th>Clock Out</th>
+          <th>Working Hours</th>
+          <th>Status</th>
+          {currentUser?.admin && <th>Actions</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {weeklyReportData.map((day, index) => {
+          // Find employee name for admin view (more efficient than doing it in each cell)
+          const employee = currentUser?.admin 
+            ? clockLog.find(log => log.uid === day.userId)
+            : null;
+          const employeeName = employee 
+            ? `${employee.userFirstName || 'Unknown'} ${employee.userSurname || 'User'}`
+            : 'Unknown User';
+
+          // Status display with styling
+          const statusText = day.status || (currentUser?.admin ? "approved" : "-");
+          const statusStyle = {
+            color: day.status === 'approved' ? 'green' :
+                  day.status === 'rejected' ? 'red' :
+                  day.status === 'pending' ? 'orange' : 'inherit'
+          };
+
+          return (
+            <tr key={index}>
+              {currentUser?.admin && <td>{employeeName}</td>}
+              <td>{day.date}</td>
+              <td>{day.clockIn || "-"}</td>
+              <td>{day.breakIn || "-"}</td>
+              <td>{day.breakOut || "-"}</td>
+              <td>{day.clockOut || "-"}</td>
+              <td>{day.workingHours || "-"}</td>
+              <td style={statusStyle}>{statusText}</td>
+              {currentUser?.admin && (
+                <td>
+                  {day.status === "pending" ? (
+                    <>
+                      <button
+                        style={{ marginRight: 5 }}
+                        onClick={() => {
+                          if (window.confirm(`Approve all time entries for ${day.date}?`)) {
+                            handleApprove(day.logIds);
+                          }
+                        }}
+                        className={styles.ApproveButton}
+                        disabled={isProcessing}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Reject all time entries for ${day.date}?`)) {
+                            handleReject(day.logIds);
+                          }
+                        }}
+                        className={styles.RejectButton}
+                        disabled={isProcessing}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : (
+                    <span>-</span>
+                  )}
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+) : (
+  <p style={{ padding: "1rem", color: "#888" }}>
+    No clock-in records found.
+  </p>
+)}
       </div>
     </div>
   );
