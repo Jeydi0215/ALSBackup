@@ -16,6 +16,7 @@ import {
   Timestamp,
   onSnapshot,
   writeBatch,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Papa from "papaparse";
@@ -59,6 +60,7 @@ interface WeeklyReportDay {
   userId?: string;
   logIds: string[];
   employeeName?: string;
+  isComplete: boolean;
 }
 
 
@@ -77,87 +79,111 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Helper function to parse time string to minutes
+  const parseTimeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const [time, period] = timeStr.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  };
+
+
 
   const exportToExcel = () => {
-  const weeklyData = getWeeklyReportData();
+    const weeklyData = getWeeklyReportData();
 
-  const worksheetData = weeklyData.map((entry) => ({
-    // Include employee name for admin exports
-    ...(currentUser?.admin && { 
-      "Employee": `${clockLog.find(log => log.uid === entry.userId)?.userFirstName || "Unknown"} ${clockLog.find(log => log.uid === entry.userId)?.userSurname || "User"}` 
-    }),
-    "Date": entry.date,
-    "Clock In": entry.clockIn || "-",
-    "Break In": entry.breakIn || "-",
-    "Break Out": entry.breakOut || "-",
-    "Clock Out": entry.clockOut || "-",
-    "Working Hours": entry.workingHours || "-",
-    "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
-    // Include additional metadata if needed
-    ...(currentUser?.admin && {
-      "Employee ID": entry.userId || "-",
-      "Total Logs": entry.logIds?.length || 0
-    })
-  }));
+    const worksheetData = weeklyData.map((entry) => ({
+      ...(currentUser?.admin && { 
+        "Employee": entry.employeeName || "Unknown User"
+      }),
+      "Date": entry.date,
+      "Clock In": entry.clockIn || "-",
+      "Break In": entry.breakIn || "-",
+      "Break Out": entry.breakOut || "-",
+      "Clock Out": entry.clockOut || 
+                  (new Date().getHours() > 17 || 
+                   (new Date().getHours() === 17 && new Date().getMinutes() >= 30) 
+                   ? "5:00 PM (auto)" 
+                   : "-"),
+      "Working Hours": entry.workingHours || "-",
+      "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+      "Notes": [
+        !entry.clockOut && 
+          (new Date().getHours() > 17 || 
+           (new Date().getHours() === 17 && new Date().getMinutes() >= 30)) 
+          ? "Clock-out automatically set to 5:00 PM" 
+          : "",
+        entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
+          ? "Early clock-in adjusted to 8:00 AM"
+          : ""
+      ].filter(note => note).join("; ") || "Normal schedule"
+    }));
 
-  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Time Report");
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Time Report");
 
-  // Generate filename with current date
-  const today = new Date().toISOString().split('T')[0];
-  const fileName = currentUser?.admin 
-    ? `employee_time_report_${today}.xlsx` 
-    : `my_time_report_${today}.xlsx`;
+    const today = new Date().toISOString().split('T')[0];
+    const fileName = currentUser?.admin 
+      ? `employee_time_report_${today}.xlsx` 
+      : `my_time_report_${today}.xlsx`;
 
-  XLSX.writeFile(workbook, fileName);
-};
+    XLSX.writeFile(workbook, fileName);
+  };
 
-const exportToCSV = () => {
-  const weeklyData = getWeeklyReportData();
+  const exportToCSV = () => {
+    const weeklyData = getWeeklyReportData();
 
-  const csvData = weeklyData.map((entry) => ({
-    // Include employee name for admin exports
-    ...(currentUser?.admin && { 
-      "Employee": `${clockLog.find(log => log.uid === entry.userId)?.userFirstName || "Unknown"} ${clockLog.find(log => log.uid === entry.userId)?.userSurname || "User"}` 
-    }),
-    "Date": entry.date,
-    "Clock In": entry.clockIn || "-",
-    "Break In": entry.breakIn || "-",
-    "Break Out": entry.breakOut || "-",
-    "Clock Out": entry.clockOut || "-",
-    "Working Hours": entry.workingHours || "-",
-    "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
-    // Include additional metadata if needed
-    ...(currentUser?.admin && {
-      "Employee ID": entry.userId || "-",
-      "Total Entries": entry.logIds?.length || 0
-    })
-  }));
+    const csvData = weeklyData.map((entry) => ({
+      ...(currentUser?.admin && { 
+        "Employee": entry.employeeName || "Unknown User"
+      }),
+      "Date": entry.date,
+      "Clock In": entry.clockIn || "-",
+      "Break In": entry.breakIn || "-",
+      "Break Out": entry.breakOut || "-",
+      "Clock Out": entry.clockOut || 
+                  (new Date().getHours() > 17 || 
+                   (new Date().getHours() === 17 && new Date().getMinutes() >= 30) 
+                   ? "5:00 PM (auto)" 
+                   : "-"),
+      "Working Hours": entry.workingHours || "-",
+      "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+      "Notes": [
+        !entry.clockOut && 
+          (new Date().getHours() > 17 || 
+           (new Date().getHours() === 17 && new Date().getMinutes() >= 30)) 
+          ? "Clock-out automatically set to 5:00 PM" 
+          : "",
+        entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
+          ? "Early clock-in adjusted to 8:00 AM"
+          : ""
+      ].filter(note => note).join("; ") || "Normal schedule"
+    }));
 
-  const csv = Papa.unparse(csvData, {
-    quotes: true, // Wrap values in quotes
-    header: true, // Include headers
-    delimiter: "," // Standard CSV delimiter
-  });
+    const csv = Papa.unparse(csvData, {
+      quotes: true,
+      header: true,
+      delimiter: ","
+    });
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
 
-  // Generate filename with current date
-  const today = new Date().toISOString().split('T')[0];
-  const fileName = currentUser?.admin 
-    ? `employee_time_report_${today}.csv` 
-    : `my_time_report_${today}.csv`;
+    const today = new Date().toISOString().split('T')[0];
+    const fileName = currentUser?.admin 
+      ? `employee_time_report_${today}.csv` 
+      : `my_time_report_${today}.csv`;
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", fileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -200,13 +226,71 @@ const exportToCSV = () => {
       );
     }
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       const logs = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ClockLogEntry[];
       
       setClockLog(logs);
+
+      // Auto clock out logic for regular users
+if (!currentUser.admin) {
+  const today = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric"
+      });
+  const userLogsToday = logs.filter(log => log.date === today && log.uid === currentUser.uid);
+
+  const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
+  const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
+  const hasAutoClockOut = userLogsToday.some(
+        log => log.key === "clockOut" && log.timeString === "5:00 PM"
+      );
+
+  const now = new Date();
+  const isAfter530 = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
+  
+
+  console.log('Current time:', now, 'Is after 5:30 PM?', isAfter530);
+      console.log('Today:', today);
+      console.log('User logs today:', userLogsToday);
+      console.log('Has clock in?', hasClockIn, 
+                 'Has clock out?', hasClockOut,
+                 'Has auto clock out?', hasAutoClockOut);
+      
+
+  // Change this condition
+if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter530 && !isProcessing) {
+        setIsProcessing(true);
+        console.log('Creating auto clock-out...');
+
+        try {
+          const fivePM = new Date();
+          fivePM.setHours(17, 0, 0, 0); // 5:00 PM today
+
+          await addDoc(collection(db, "clockLog"), {
+            uid: currentUser.uid,
+            key: "clockOut",
+            time: Timestamp.fromDate(fivePM),
+            timeString: "5:00 PM",
+            date: today,
+            status: "pending",
+            imageUrl: "",
+            userFirstName: userData?.firstName,
+            userSurname: userData?.surname,
+            isAuto: true
+          });
+        } catch (err) {
+          console.error("Auto clock-out failed:", err);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+  }
+
+
 
       // Only update timestamps for non-admin users
       if (!currentUser.admin) {
@@ -224,7 +308,7 @@ const exportToCSV = () => {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, isProcessing, userData]);
 
   // Update real-time clock
   useEffect(() => {
@@ -247,30 +331,53 @@ const exportToCSV = () => {
 
   // const handleResume = () => setIsResume(!isResume);
 
-  const calculateWorkingHours = (clockInTime: string, breakInTime: string, breakOutTime: string, clockOutTime: string) => {
-    if (!clockInTime || !clockOutTime) return "";
+  // Updated calculateWorkingHours function
+  const calculateWorkingHours = (
+    clockInTime: string,
+    breakInTime: string,
+    breakOutTime: string,
+    clockOutTime: string
+  ) => {
+    // Handle auto-clock-out at 5:00 PM if after 5:30 PM
+    const isAutoClockOut = !clockOutTime && 
+      (new Date().getHours() > 17 || 
+       (new Date().getHours() === 17 && new Date().getMinutes() >= 30));
+    const effectiveClockOut = isAutoClockOut ? "5:00 PM" : clockOutTime;
 
-    const parseTime = (timeStr: string) => {
-      const [time, period] = timeStr.split(" ");
-      let [hours, minutes] = time.split(":").map(Number);
-      if (period === "PM" && hours < 12) hours += 12;
-      if (period === "AM" && hours === 12) hours = 0;
-      return hours * 60 + minutes;
-    };
+    if (!clockInTime || !effectiveClockOut) return "-";
 
-    const clockIn = parseTime(clockInTime);
-    const clockOut = parseTime(clockOutTime);
-    let totalMinutes = clockOut - clockIn;
+    // Convert times to minutes since midnight
+    const clockInMinutes = parseTimeToMinutes(clockInTime);
+    let startTimeMinutes = clockInMinutes;
+    
+    // If clock-in is before 8 AM (480 minutes), use 8 AM as start time
+    const EIGHT_AM = 8 * 60; // 8 AM in minutes
+    const isEarlyClockIn = clockInMinutes < EIGHT_AM;
+    if (isEarlyClockIn) {
+      startTimeMinutes = EIGHT_AM;
+    }
 
+    const clockOutMinutes = parseTimeToMinutes(effectiveClockOut);
+    let totalMinutes = clockOutMinutes - startTimeMinutes;
+
+    // Handle break time if exists
     if (breakInTime && breakOutTime) {
-      totalMinutes -= (parseTime(breakOutTime) - parseTime(breakInTime));
+      const breakInMinutes = parseTimeToMinutes(breakInTime);
+      const breakOutMinutes = parseTimeToMinutes(breakOutTime);
+      totalMinutes -= (breakOutMinutes - breakInMinutes);
     }
 
     if (totalMinutes <= 0) return "0m";
 
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
+    
+    // Add indicators for special cases
+    let suffix = "";
+    if (isAutoClockOut) suffix += "*";
+    if (isEarlyClockIn) suffix += "⁑";
+    
+    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m${suffix}`;
   };
 
   const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
@@ -285,83 +392,89 @@ const exportToCSV = () => {
   };
 
   const getWeeklyReportData = (): WeeklyReportDay[] => {
-  const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 6);
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 6);
 
-  const dates: Record<string, WeeklyReportDay> = {};
+    const dates: Record<string, WeeklyReportDay> = {};
 
-  // Group logs by user and date
-  const userDateGroups: Record<string, ClockLogEntry[]> = {};
+    // Group logs by user and date
+    const userDateGroups: Record<string, ClockLogEntry[]> = {};
 
-  clockLog.forEach(log => {
-    if (!log.time || !log.key || !log.timeString) return;
-    
-    const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
-    const logDateStr = logDateObj.toLocaleDateString("en-US", {
-      month: "long",
-      day: "2-digit",
-      year: "numeric",
-    });
-
-    if (logDateObj < sevenDaysAgo || logDateObj > now) return;
-
-    const groupKey = currentUser?.admin 
-      ? `${log.uid}_${logDateStr}` 
-      : logDateStr;
-
-    if (!userDateGroups[groupKey]) {
-      userDateGroups[groupKey] = [];
-    }
-    userDateGroups[groupKey].push(log);
-  });
-
-  // Process each day's logs
-  Object.entries(userDateGroups).forEach(([key, dayLogs]) => {
-    const dateKey = currentUser?.admin ? key.split('_')[1] : key;
-    const userId = currentUser?.admin ? key.split('_')[0] : currentUser?.uid;
-
-    if (!dates[dateKey]) {
-      dates[dateKey] = {
-        date: dateKey,
-        workingHours: "",
-        userId,
-        logIds: [],
-        employeeName: currentUser?.admin 
-          ? `${dayLogs[0]?.userFirstName || ''} ${dayLogs[0]?.userSurname || ''}`.trim() 
-          : undefined
-      };
-    }
-
-    dayLogs.forEach(log => {
-      dates[dateKey].logIds.push(log.id);
+    clockLog.forEach(log => {
+      if (!log.time || !log.key || !log.timeString) return;
       
-      if (["clockIn", "breakIn", "breakOut", "clockOut"].includes(log.key)) {
-        if (!dates[dateKey][log.key]) {
-          dates[dateKey][log.key] = log.timeString;
-        }
-        // Use clockIn status for the whole day
-        if (log.key === "clockIn" && log.status) {
-          dates[dateKey].status = log.status;
-        }
+      const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+      const logDateStr = logDateObj.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+      });
+
+      if (logDateObj < sevenDaysAgo || logDateObj > now) return;
+
+      const groupKey = currentUser?.admin 
+        ? `${log.uid}_${logDateStr}` 
+        : logDateStr;
+
+      if (!userDateGroups[groupKey]) {
+        userDateGroups[groupKey] = [];
       }
+      userDateGroups[groupKey].push(log);
     });
+
+    // Process each day's logs
+    Object.entries(userDateGroups).forEach(([key, dayLogs]) => {
+      const dateKey = currentUser?.admin ? key.split('_')[1] : key;
+      const userId = currentUser?.admin ? key.split('_')[0] : currentUser?.uid;
+
+      if (!dates[dateKey]) {
+        dates[dateKey] = {
+          date: dateKey,
+          workingHours: "",
+          userId,
+          logIds: [],
+          employeeName: currentUser?.admin 
+            ? `${dayLogs[0]?.userFirstName || ''} ${dayLogs[0]?.userSurname || ''}`.trim() 
+            : undefined,
+          isComplete: false
+        };
+      }
+
+      dayLogs.forEach(log => {
+        dates[dateKey].logIds.push(log.id);
+        
+        if (["clockIn", "breakIn", "breakOut", "clockOut"].includes(log.key)) {
+          if (!dates[dateKey][log.key]) {
+            dates[dateKey][log.key] = log.timeString;
+          }
+          // Use clockIn status for the whole day
+          if (log.key === "clockIn" && log.status) {
+            dates[dateKey].status = log.status;
+          }
+        }
+      });
+
+      // Check if the day is complete (has both clockIn and clockOut)
+    const hasClockIn = dayLogs.some(log => log.key === "clockIn");
+    const hasClockOut = dayLogs.some(log => log.key === "clockOut");
+    dates[dateKey].isComplete = hasClockIn && hasClockOut;
   });
 
-  // Calculate working hours
-  Object.values(dates).forEach(day => {
-    day.workingHours = calculateWorkingHours(
-      day.clockIn || "",
-      day.breakIn || "",
-      day.breakOut || "",
-      day.clockOut || ""
+    // Calculate working hours for each day
+    Object.values(dates).forEach(day => {
+      day.workingHours = calculateWorkingHours(
+        day.clockIn || "",
+        day.breakIn || "",
+        day.breakOut || "",
+        day.clockOut || ""
+      );
+    });
+
+    return Object.values(dates).sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  });
-
-  return Object.values(dates).sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-};
+  };
 
 // Update approval/rejection handlers
 const handleApprove = async (logIds: string[]) => {
@@ -441,6 +554,8 @@ const handleReject = async (logIds: string[]) => {
     <div className={styles.Dashboard}>
       <h1 className={styles.Dash_title}>Dashboard</h1>
 
+      {/* Widgets section - only for non-admin users */}
+      {!currentUser?.admin && (
       <div className={styles.Dashboard_widgets}>
         <div className={styles.Widget_top}>
           <div className={styles.Widget_left}>
@@ -495,14 +610,14 @@ const handleReject = async (logIds: string[]) => {
           ))}
         </div>
       </div>
-
+)}
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
           <span className={styles.ReportText}>
             {currentUser?.admin ? "Employee Time Logs" : "Weekly Report"}
           </span>
           <div>
-            <button style={{marginRight: 5}}onClick={exportToCSV} className={styles.ExportButton}>
+            <button style={{marginRight: 5}} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
             </button>
             <button onClick={exportToExcel} className={styles.ExportButton}>
@@ -516,93 +631,105 @@ const handleReject = async (logIds: string[]) => {
         </div>
 
         {clockLog.length > 0 ? (
-  <div className={styles.WeeklyTable}>
-    <table>
-      <thead>
-        <tr>
-          {currentUser?.admin && <th>Employee</th>}
-          <th>Date</th>
-          <th>Clock In</th>
-          <th>Break In</th>
-          <th>Break Out</th>
-          <th>Clock Out</th>
-          <th>Working Hours</th>
-          <th>Status</th>
-          {currentUser?.admin && <th>Actions</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {weeklyReportData.map((day, index) => {
-          // Find employee name for admin view (more efficient than doing it in each cell)
-          const employee = currentUser?.admin 
-            ? clockLog.find(log => log.uid === day.userId)
-            : null;
-          const employeeName = employee 
-            ? `${employee.userFirstName || 'Unknown'} ${employee.userSurname || 'User'}`
-            : 'Unknown User';
+          <div className={styles.WeeklyTable}>
+            <table>
+              <thead>
+                <tr>
+                  {currentUser?.admin && <th>Employee</th>}
+                  <th>Date</th>
+                  <th>Clock In</th>
+                  <th>Break In</th>
+                  <th>Break Out</th>
+                  <th>Clock Out</th>
+                  <th>Working Hours</th>
+                  <th>Status</th>
+                  {currentUser?.admin && <th>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {weeklyReportData.map((day, index) => {
+                  const employeeName = day.employeeName || "Unknown User";
+                  const statusText = day.status || (currentUser?.admin ? "approved" : "-");
+                  const statusStyle = {
+                    color: day.status === 'approved' ? 'green' :
+                          day.status === 'rejected' ? 'red' :
+                          day.status === 'pending' ? 'orange' : 'inherit'
+                  };
 
-          // Status display with styling
-          const statusText = day.status || (currentUser?.admin ? "approved" : "-");
-          const statusStyle = {
-            color: day.status === 'approved' ? 'green' :
-                  day.status === 'rejected' ? 'red' :
-                  day.status === 'pending' ? 'orange' : 'inherit'
-          };
-
-          return (
-            <tr key={index}>
-              {currentUser?.admin && <td>{employeeName}</td>}
-              <td>{day.date}</td>
-              <td>{day.clockIn || "-"}</td>
-              <td>{day.breakIn || "-"}</td>
-              <td>{day.breakOut || "-"}</td>
-              <td>{day.clockOut || "-"}</td>
-              <td>{day.workingHours || "-"}</td>
-              <td style={statusStyle}>{statusText}</td>
-              {currentUser?.admin && (
-                <td>
-                  {day.status === "pending" ? (
-                    <>
-                      <button
-                        style={{ marginRight: 5 }}
-                        onClick={() => {
-                          if (window.confirm(`Approve all time entries for ${day.date}?`)) {
-                            handleApprove(day.logIds);
-                          }
-                        }}
-                        className={styles.ApproveButton}
-                        disabled={isProcessing}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Reject all time entries for ${day.date}?`)) {
-                            handleReject(day.logIds);
-                          }
-                        }}
-                        className={styles.RejectButton}
-                        disabled={isProcessing}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  ) : (
-                    <span>-</span>
-                  )}
-                </td>
-              )}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-) : (
-  <p style={{ padding: "1rem", color: "#888" }}>
-    No clock-in records found.
-  </p>
+                  return (
+                    <tr key={index}>
+                      {currentUser?.admin && <td>{employeeName}</td>}
+                      <td>{day.date}</td>
+                      <td>{day.clockIn || "-"}</td>
+                      <td>{day.breakIn || "-"}</td>
+                      <td>{day.breakOut || "-"}</td>
+                      <td>
+                        {day.clockOut || 
+                         (new Date().getHours() > 17 || 
+                          (new Date().getHours() === 17 && new Date().getMinutes() >= 30) 
+                          ? "5:00 PM*" 
+                          : "-")}
+                      </td>
+                      <td>{day.workingHours || "-"}</td>
+                      <td style={statusStyle}>{statusText}</td>
+                      {currentUser?.admin && (
+                        <td>
+                          {day.status === "pending" && day.isComplete ? (
+                            <>
+                              <button
+                                style={{ marginRight: 5 }}
+                                onClick={() => {
+                                  if (window.confirm(`Approve all time entries for ${day.date}?`)) {
+                                    handleApprove(day.logIds);
+                                  }
+                                }}
+                                className={styles.ApproveButton}
+                                disabled={isProcessing}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Reject all time entries for ${day.date}?`)) {
+                                    handleReject(day.logIds);
+                                  }
+                                }}
+                                className={styles.RejectButton}
+                                disabled={isProcessing}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : day.status === "pending" ? (
+      <span title="Cannot approve/reject until clock-out is recorded">Pending clock-out</span>
+    ) : (
+      <span>-</span>
+    )}
+  </td>
 )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div style={{ 
+              textAlign: 'right', 
+              fontSize: '0.8rem', 
+              color: '#666', 
+              marginTop: '10px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '20px'
+            }}>
+              <span>* Auto clock-out at 5:00 PM</span>
+              <span>⁑ Early clock-in adjusted to 8:00 AM</span>
+            </div>
+          </div>
+        ) : (
+          <p style={{ padding: "1rem", color: "#888" }}>
+            No clock-in records found.
+          </p>
+        )}
       </div>
     </div>
   );

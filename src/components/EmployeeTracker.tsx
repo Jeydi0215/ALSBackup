@@ -30,7 +30,7 @@ const EmployeeTracker = () => {
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!currentUser) return;
-      
+
       try {
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         setIsAdmin(userDoc.data()?.admin || false);
@@ -47,22 +47,22 @@ const EmployeeTracker = () => {
   // Format timestamp for display
   const formatTimestamp = (timestamp: string | Timestamp): string => {
     if (!timestamp) return "N/A";
-    
+
     if (typeof timestamp === 'string') {
       return timestamp;
     }
-    
+
     try {
       // If it's a Firebase Timestamp
       if (timestamp instanceof Timestamp) {
         return timestamp.toDate().toLocaleString();
       }
-      
+
       // If it's a Timestamp object but not an instance (can happen with Firestore data)
       if (timestamp.seconds && timestamp.nanoseconds) {
         return new Date(timestamp.seconds * 1000).toLocaleString();
       }
-      
+
       return "N/A";
     } catch (error) {
       console.error("Error formatting timestamp:", error);
@@ -79,7 +79,7 @@ const EmployeeTracker = () => {
 
     const fetchData = () => {
       // Always fetch users (assuming your rules allow this)
-      unsubUsers = onSnapshot(collection(db, "users"), 
+      unsubUsers = onSnapshot(collection(db, "users"),
         (userSnap) => {
           const users = userSnap.docs.map((doc) => ({
             uid: doc.id,
@@ -169,18 +169,29 @@ const EmployeeTracker = () => {
         </thead>
         <tbody>
           {allUsers.map((user) => {
+            const isCurrentAdmin = isAdmin && user.uid === currentUser.uid;
+
             const { status, timestamp } = getUserStatus(user.uid);
+
             return (
               <tr key={user.uid}>
                 <td>{user.firstName} {user.surname}</td>
                 <td>
-                  {status === "Clocked In" && <In />}
-                  {status === "Clocked Out" && <Out />}
-                  {status === "On Break" && <Break />}
-                  {status === "Off Break" && <OffBreak />}
-                  {status === "No logs" && "No activity"}
+                  {isCurrentAdmin ? (
+                    "Admin"
+                  ) : status === "Clocked In" ? (
+                    <In />
+                  ) : status === "Clocked Out" ? (
+                    <Out />
+                  ) : status === "On Break" ? (
+                    <Break />
+                  ) : status === "Off Break" ? (
+                    <OffBreak />
+                  ) : (
+                    "No activity"
+                  )}
                 </td>
-                <td>{timestamp || "N/A"}</td>
+                <td>{isCurrentAdmin ? "—" : timestamp || "N/A"}</td>
               </tr>
             );
           })}
