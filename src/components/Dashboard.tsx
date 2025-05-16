@@ -250,10 +250,10 @@ if (!currentUser.admin) {
       );
 
   const now = new Date();
-  const isAfter530 = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
+  const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
   
 
-  console.log('Current time:', now, 'Is after 5:30 PM?', isAfter530);
+  console.log('Current time:', now, 'Is after 8:00 PM?', isAfter8PM);
       console.log('Today:', today);
       console.log('User logs today:', userLogsToday);
       console.log('Has clock in?', hasClockIn, 
@@ -262,25 +262,24 @@ if (!currentUser.admin) {
       
 
   // Change this condition
-if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter530 && !isProcessing) {
+if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
         setIsProcessing(true);
         console.log('Creating auto clock-out...');
 
         try {
-          const fivePM = new Date();
-          fivePM.setHours(17, 0, 0, 0); // 5:00 PM today
 
           await addDoc(collection(db, "clockLog"), {
             uid: currentUser.uid,
             key: "clockOut",
-            time: Timestamp.fromDate(fivePM),
-            timeString: "5:00 PM",
+            time: null,
+            timeString: "NULL (Missed 8PM)",
             date: today,
             status: "pending",
             imageUrl: "",
             userFirstName: userData?.firstName,
             userSurname: userData?.surname,
-            isAuto: true
+            isAuto: true,
+            notes: "Employee failed to clock out by 8:00 PM cutoff"
           });
         } catch (err) {
           console.error("Auto clock-out failed:", err);
