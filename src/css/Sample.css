@@ -16,18 +16,10 @@
   -o-transform: translateX(-5rem);
   min-height: 90dvh;
 }
-select,
-option {
-  width: 100%;
-  padding: 0.75rem;
-  border: solid 1px #333;
-  border-radius: 5px;
-  text-align: center;
-}
-
 .Accepted,
 .Rejected {
   width: 75%;
+  color: #fff;
   border-radius: 10px;
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
@@ -36,16 +28,13 @@ option {
   padding: 0.75rem 0;
 }
 
-/* select .Accepted {
+.Accepted {
   background-color: #6ec068;
 }
 
-select option .Rejected {
-  background-color: #e05345 !important;
+.Rejected {
+  background-color: #e05345;
 }
-select option {
-  border: solid 1px #333;
-} */
 @keyframes Page {
   to {
     transform: translateX(0);
@@ -110,19 +99,4 @@ select option {
   width: 100%;
   border: solid 1px #03396c;
   border-radius: 5px;
-}
-
-@media (max-width: 431px) {
-  .EmployeeList {
-    padding: 0;
-  }
-  .List_head {
-    border-radius: 0;
-  }
-  .List_head span {
-    font-size: 0.75em;
-  }
-  .Button_inner {
-    width: 100%;
-  }
 }

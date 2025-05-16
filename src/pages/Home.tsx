@@ -12,6 +12,7 @@ import History from "../components/History";
 import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
+import EmployeeList from '../components/EmployeeList'
 import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc } from "firebase/firestore";
 
 
@@ -146,6 +147,8 @@ const Home = ({
         return <About />;
       case 5:
           return <Monitoring />;
+      case 6:
+          return <EmployeeList />;
       default:
         return <History />;
     }
