@@ -78,6 +78,7 @@ const Signup = () => {
         admin: false,
         status: "offline",
         approved: false, // admin must approve
+        isEmployee: true,
         phone: "",       // added
         age: "",         // added
         gender: "",      // added
@@ -121,6 +122,7 @@ const Signup = () => {
         admin: false,
         status: "offline",
         approved: false, // admin must approve
+        isEmployee: true,
         phone: "",       // added
         age: "",         // added
         gender: "",      // added

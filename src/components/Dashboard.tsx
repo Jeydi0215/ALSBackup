@@ -720,7 +720,7 @@ const handleReject = async (logIds: string[]) => {
               justifyContent: 'flex-end',
               gap: '20px'
             }}>
-              <span>* Auto clock-out at 5:00 PM</span>
+              <span>* Auto null at when no clock out until 8:00 PM</span>
               <span>⁑ Early clock-in adjusted to 8:00 AM</span>
             </div>
           </div>

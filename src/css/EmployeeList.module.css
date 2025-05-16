@@ -112,6 +112,46 @@ select option {
   border-radius: 5px;
 }
 
+.EmployeeDropdown {
+  background-color: #073d6b;
+  color: #fff;
+  border: 1px solid #ffffff50;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  transition: border 0.3s;
+}
+
+.EmployeeDropdown:hover,
+.EmployeeDropdown:focus {
+  border: 1px solid #fff;
+  outline: none;
+}
+
+.EmployeeName {
+  color: #fff;
+  font-size: 1rem;
+}
+
+.BackButton {
+  background-color: #f0f4f8;
+  color: #073d6b;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.BackButton:hover {
+  background-color: #e0e7ef;
+}
+
 @media (max-width: 431px) {
   .EmployeeList {
     padding: 0;
