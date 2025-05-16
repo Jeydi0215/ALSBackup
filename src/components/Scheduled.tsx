@@ -10,7 +10,7 @@ const Scheduled = () => {
                     <option value="">This Week</option>
                 </select>
 
-                <span>Last edited: 04/23/2025 01:24 AM</span>
+                <span>Last edited: 05/16/2025 10:57 PM</span>
             </div>
             <table>
     <thead>
@@ -23,27 +23,27 @@ const Scheduled = () => {
     <tbody>
       <tr>
         <td>Monday</td>
-        <td>9:00 AM</td>
+        <td>8:00 AM</td>
         <td>5:00 PM</td>
       </tr>
       <tr>
         <td>Tuesday</td>
-        <td>9:00 AM</td>
+        <td>8:00 AM</td>
         <td>5:00 PM</td>
       </tr>
       <tr>
         <td>Wednesday</td>
-        <td>9:00 AM</td>
+        <td>8:00 AM</td>
         <td>5:00 PM</td>
       </tr>
       <tr>
         <td>Thursday</td>
-        <td>9:00 AM</td>
+        <td>8:00 AM</td>
         <td>5:00 PM</td>
       </tr>
       <tr>
         <td>Friday</td>
-        <td>9:00 AM</td>
+        <td>8:00 AM</td>
         <td>5:00 PM</td>
       </tr>
     </tbody>

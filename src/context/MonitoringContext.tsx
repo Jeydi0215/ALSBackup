@@ -20,7 +20,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const unsubscribeTotalUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      setTotalUsers(snapshot.size);
+      setTotalUsers(snapshot.size-1);
     });
 
     return () => {

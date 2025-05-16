@@ -57,49 +57,56 @@ const Home = ({
   const now = new Date();
   const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
   
-  // For clock-ins only: apply special rules
-  if (currentKey === "clockIn") {
-    // 1. No clock-ins after 3:00 PM
-    if (manilaTime.getHours() >= 15) {
-      alert("Clock-in is only allowed before 3:00 PM");
-      setShowCamera(false);
-      return;
-    }
+  // // For clock-ins only: apply special rules
+  // if (currentKey === "clockIn") {
+  //   // 1. No clock-ins after 3:00 PM
+  //   if (manilaTime.getHours() >= 15) {
+  //     alert("Clock-in is only allowed before 3:00 PM");
+  //     setShowCamera(false);
+  //     return;
+  //   }
 
-    // 2. Early clock-in adjustment (before 8:00 AM becomes 8:00 AM)
-    const isEarlyClockIn = manilaTime.getHours() < 8;
-    const adjustedTime = isEarlyClockIn 
-      ? new Date(manilaTime.setHours(8, 0, 0, 0))
-      : manilaTime;
+  //   // 2. Early clock-in adjustment (before 8:00 AM becomes 8:00 AM)
+  //   const isEarlyClockIn = manilaTime.getHours() < 8;
+  //   const actualTime = manilaTime.toLocaleTimeString("en-US", {
+  //     hour: "2-digit",
+  //     minute: "2-digit",
+  //     hour12: true
+  //   });
+  //   const adjustedTime = isEarlyClockIn 
+  //     ? new Date(manilaTime.setHours(8, 0, 0, 0))
+  //     : manilaTime;
 
-    try {
-      await addDoc(collection(db, "clockLog"), {
-        uid: currentUser.uid,
-        key: currentKey,
-        time: Timestamp.fromDate(adjustedTime), // Use adjusted time
-        timeString: adjustedTime.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true
-        }),
-        date: manilaTime.toLocaleDateString("en-US", {
-          month: "long",
-          day: "2-digit",
-          year: "numeric",
-        }),
-        imageUrl,
-        status: "pending",
-        userFirstName: currentUser.userFirstName,
-        userSurname: currentUser.userSurname,
-        isAdjusted: isEarlyClockIn // Flag for adjusted clock-ins
-      });
-    } catch (error) {
-      console.error("Error saving clock log:", error);
-    } finally {
-      setShowCamera(false);
-    }
-    return;
-  }
+  //   try {
+  //     await addDoc(collection(db, "clockLog"), {
+  //       uid: currentUser.uid,
+  //       key: currentKey,
+  //       actualTime: actualTime, // e.g. "7:30 AM"
+  //       adjustedTime: adjustedTime.toLocaleTimeString("en-US", {
+  //         hour: "2-digit",
+  //         minute: "2-digit",
+  //         hour12: true
+  //       }), // e.g. "8:00 AM"
+  //       time: Timestamp.fromDate(adjustedTime), // Use adjusted for sorting
+  //       timeString: `${actualTime} → 8:00 AM`, // Visual indicator
+  //       date: manilaTime.toLocaleDateString("en-US", {
+  //         month: "long",
+  //         day: "2-digit",
+  //         year: "numeric",
+  //       }),
+  //       imageUrl,
+  //       status: "pending",
+  //       userFirstName: currentUser.userFirstName,
+  //       userSurname: currentUser.userSurname,
+  //       isAdjusted: isEarlyClockIn // Flag for adjusted clock-ins
+  //     });
+  //   } catch (error) {
+  //     console.error("Error saving clock log:", error);
+  //   } finally {
+  //     setShowCamera(false);
+  //   }
+  //   return;
+  // }
 
   // Original logic for other types (breakIn, breakOut, clockOut)
   try {
