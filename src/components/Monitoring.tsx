@@ -4,7 +4,7 @@ import styles from '../css/Monitoring.module.css'
 import EmployeeTracker from './EmployeeTracker'
 import Pending from './Pending'
 import Logged from '../assets/logged.png'
-import Search from '../assets/search.png'
+// import Search from '../assets/search.png'
 import Clock from '../assets/clock.png'
 import Coffee from '../assets/coffee.png'
 import Out from '../assets/logout.png'
@@ -63,10 +63,10 @@ const Monitoring = () => {
                     case 'clockIn':
                         working++;
                         break;
-                    case 'breakOut':
+                    case 'breakIn':
                         onBreak++;
                         break;
-                    case 'breakIn':
+                    case 'breakOut':
                         working++;
                         break;
                     case 'clockOut':
