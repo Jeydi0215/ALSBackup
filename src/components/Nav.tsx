@@ -39,7 +39,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
             </svg>{" "}
             <span>Dashboard</span>
           </li>
-          <li onClick={() => handlePageClick(2)}>
+{/*           <li onClick={() => handlePageClick(2)}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -57,7 +57,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
               <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
             </svg>
             <span>Login History</span>
-          </li>
+          </li> */}
 
           <li onClick={() => handlePageClick(3)}>
             <svg
