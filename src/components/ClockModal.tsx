@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-
 import styles from "../css/ClockModal.module.css";
-
-
 import Calendar from "../assets/calendar.png";
 import Close from "../assets/close.png";
-// Import Firebase storage functions
+
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
-import { imageDb } from "../firebase"; 
+import { imageDb } from "../firebase";
+
+import * as faceapi from "face-api.js";
 
 type Props = {
   handleCameraClick: () => void;
@@ -22,6 +21,19 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Load face-api.js models on mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models"); // Path to public/models
+        console.log("face-api.js models loaded");
+      } catch (err) {
+        console.error("Error loading face-api.js models:", err);
+      }
+    };
+    loadModels();
+  }, []);
 
   const handleLocationClick = () => setShareLocation(!shareLocation);
 
@@ -54,84 +66,84 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   };
 
   const uploadToFirebase = async (imageDataUrl: string): Promise<string> => {
-    setIsUploading(true);
     try {
-      // Get current date in YYYY-MM-DD format for folder organization
       const today = new Date();
-      const dateFolder = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-      
-      // Create a unique filename for the image
+      const dateFolder = today.toISOString().split("T")[0];
       const timestamp = today.getTime();
       const fileName = `time-ins/${dateFolder}/user_${timestamp}.png`;
-      
-      // Create a reference to the file location in Firebase Storage
       const storageRef = ref(imageDb, fileName);
-      
-      // Extract the base64 data (remove the data URL prefix)
-      const base64Data = imageDataUrl.split(',')[1];
-      
-      // Upload the image to Firebase Storage
-      await uploadString(storageRef, base64Data, 'base64');
-      
-      // Get the download URL for the uploaded image
+      const base64Data = imageDataUrl.split(",")[1];
+      await uploadString(storageRef, base64Data, "base64");
       const downloadUrl = await getDownloadURL(storageRef);
-      
       console.log("Image uploaded successfully to:", fileName);
       return downloadUrl;
     } catch (error) {
       console.error("Error uploading image:", error);
       throw error;
-    } finally {
-      setIsUploading(false);
+    }
+  };
+
+  // ✅ Detect face using face-api.js
+  const detectFace = async (canvas: HTMLCanvasElement): Promise<boolean> => {
+    try {
+      const detections = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions());
+      console.log("Faces detected:", detections.length);
+      return detections.length > 0;
+    } catch (error) {
+      console.error("Face detection error:", error);
+      return false;
     }
   };
 
   const handleSubmit = async () => {
-    if (capturedImage) {
-      try {
-        setIsUploading(true);
-        
-        // Create a Date object for consistent timestamps
-        const now = new Date();
-        
-        // Format for display
-        const formattedTimestamp = now.toLocaleString("en-US", {
-          weekday: "long",
-          month: "short",
-          day: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-        
-        // Upload the image to Firebase
-        const imageUrl = await uploadToFirebase(capturedImage);
-        
-        // Create metadata object with additional time information
-        const metadata = {
-          date: now.toISOString().split('T')[0], // YYYY-MM-DD
-          time: now.toTimeString().split(' ')[0], // HH:MM:SS
-          timestamp: now.getTime(),
-          formattedTime: formattedTimestamp,
-          withLocation: shareLocation
-        };
-        
-        // Pass the local image, timestamp, and the Firebase URL to the parent component
-        onSubmitClockLog(capturedImage, formattedTimestamp, imageUrl);
-        
-        setCapturedImage(null);
-        handleCameraClick();
-        
-        console.log("Time-in recorded successfully:", metadata);
-      } catch (error) {
-        alert("Failed to upload image. Please try again.");
-        console.error("Upload error:", error);
-      } finally {
-        setIsUploading(false);
-      }
-    } else {
+    if (!capturedImage || !canvasRef.current) {
       alert("Please take a photo before submitting.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+
+      const hasFace = await detectFace(canvasRef.current);
+      if (!hasFace) {
+        alert("No face detected. Please retake the photo.");
+        setIsUploading(false);
+        setCapturedImage(null); // optional: force retake
+        return; // 🚫 Prevent upload and save
+      }
+
+      // ✅ Proceed only if face is detected
+      const now = new Date();
+      const formattedTimestamp = now.toLocaleString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      const imageUrl = await uploadToFirebase(capturedImage);
+
+      const metadata = {
+        date: now.toISOString().split("T")[0],
+        time: now.toTimeString().split(" ")[0],
+        timestamp: now.getTime(),
+        formattedTime: formattedTimestamp,
+        withLocation: shareLocation,
+      };
+
+      onSubmitClockLog(capturedImage, formattedTimestamp, imageUrl);
+
+      setCapturedImage(null);
+      handleCameraClick();
+      console.log("Time-in recorded successfully:", metadata);
+    } catch (error) {
+      alert("Failed to upload image. Please try again.");
+      console.error("Upload error:", error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -156,16 +168,12 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       <div className={styles.ClockModal_inner}>
         <div className={styles.Head}>
           <img onClick={handleCameraClick} className={styles.Close} src={Close} alt="Close" />
-
-
-
-
-
           <div className={styles.Head_inner}>
             <img src={Calendar} alt="Calendar Icon" />
             <span>{new Date().toLocaleString()}</span>
           </div>
         </div>
+
         {capturedImage ? (
           <img src={capturedImage} className={styles.User} alt="Captured" />
         ) : (
@@ -182,16 +190,9 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             >
               {shareLocation ? "Location On" : "Location Off"}
             </button>
-            <button 
-              onClick={capturedImage ? handleRetake : takePhoto}
-              disabled={isUploading}
-            >
+            <button onClick={capturedImage ? handleRetake : takePhoto} disabled={isUploading}>
               {capturedImage ? "Retake Photo" : "Take Photo"}
             </button>
-
-
-
-
           </div>
           <button
             className={shareLocation ? styles.Submit : styles.Submit2}

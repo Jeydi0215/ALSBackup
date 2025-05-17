@@ -598,7 +598,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           <span className={styles.ReportText}>
             {currentUser?.admin ? "Employee Time Logs" : "Weekly Report"}
           </span>
-          <div>
+          <div className={styles.Head_button}>
             <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
             </button>
@@ -606,86 +606,124 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
               Export to Excel
             </button>
           </div>
-          <div className={styles.Filter}>
-            <img src={Filter} alt="Filter icon" />
-            <span>Filter by date</span>
-          </div>
+
         </div>
 
         {clockLog.length > 0 ? (
           <div className={styles.WeeklyTable}>
-            <table>
-              <thead>
-                <tr>
-                  {currentUser?.admin && <th>Employee</th>}
-                  <th>Date</th>
-                  <th>Clock In</th>
-                  <th>Break In</th>
-                  <th>Break Out</th>
-                  <th>Clock Out</th>
-                  <th>Working Hours</th>
-                  <th>Status</th>
-                  {currentUser?.admin && <th>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-  {weeklyReportData.map((entry, index) => {
-    const employeeName = entry.employeeName || "Unknown User";
-    const statusText = entry.status || "-";
-    const statusStyle = {
-      color: entry.status === 'approved' ? 'green' :
-            entry.status === 'rejected' ? 'red' :
-            entry.status === 'pending' ? 'orange' : 'inherit'
-    };
+            <div className={styles.Clock_day}>
+              <div className={styles.Clock_morning}>
+              <h2>Morning:</h2>
+              <table>
+                <thead>
+                  <tr>
+                    {currentUser?.admin && <th>Employee</th>}
+                    <th>Date</th>
+                    <th>Clock In</th>
+                    <th>Break In</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyReportData.map((entry, index) => {
+                    const employeeName = entry.employeeName || "Unknown User";
+                    const statusText = entry.status || "-";
+                    const statusStyle = {
+                      color:
+                        entry.status === 'approved' ? 'green' :
+                        entry.status === 'rejected' ? 'red' :
+                        entry.status === 'pending'  ? 'orange' :
+                        'inherit'
+                    };
 
-    return (
-      <tr key={index}>
-        {currentUser?.admin && <td>{employeeName}</td>}
-        <td>{entry.date}</td>
-        <td>{entry.clockIn || "-"}</td>
-        <td>{entry.breakIn || "-"}</td>
-        <td>{entry.breakOut || "-"}</td>
-        <td>{entry.clockOut || "-"}</td>
-        <td>{entry.workingHours}</td>
-        <td style={statusStyle}>{statusText}</td>
-        {currentUser?.admin && (
-          <td>
-            {entry.status === "pending" && entry.isComplete ? (
-              <>
-                <button
-                  style={{ marginRight: 5 }}
-                  onClick={() => {
-                                  if (window.confirm(`Approve all time entries for ${entry.date}?`)) {
-                                    handleApprove(entry.logIds);
-                                  }
-                                }}
-                  className={styles.ApproveButton}
-                  disabled={isProcessing}
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => {
-                                  if (window.confirm(`Reject all time entries for ${entry.date}?`)) {
-                                    handleReject(entry.logIds);
-                                  }
-                                }}
-                  className={styles.RejectButton}
-                  disabled={isProcessing}
-                >
-                  Reject
-                </button>
-              </>
-            ) : (
-              <span>-</span>
-            )}
-          </td>
-        )}
-      </tr>
-    );
-  })}
-</tbody>
-            </table>
+                    return (
+                      <tr key={index}>
+                        {currentUser?.admin && <td>{employeeName}</td>}
+                        <td>{entry.date}</td>
+                        <td>{entry.clockIn || "-"}</td>
+                        <td>{entry.breakIn || "-"}</td>
+                        <td style={statusStyle}>{statusText}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
+
+              <div className={styles.Clock_afternoon}>
+                <h2>Afternoon:</h2>
+                <table>
+                <thead>
+                  <tr>
+                    {currentUser?.admin && <th>Employee</th>}
+                    <th>Date</th>
+                    <th>Break Out</th>
+                    <th>Clock Out</th>
+                    <th>Status</th>
+                    {currentUser?.admin && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyReportData.map((entry, index) => {
+                    const employeeName = entry.employeeName || "Unknown User";
+                    const statusText = entry.status || "-";
+                    const statusStyle = {
+                      color:
+                        entry.status === 'approved' ? 'green' :
+                        entry.status === 'rejected' ? 'red' :
+                        entry.status === 'pending'  ? 'orange' :
+                        'inherit'
+                    };
+
+                    return (
+                      <tr key={index}>
+                        {currentUser?.admin && <td>{employeeName}</td>}
+                        <td>{entry.date}</td>
+                        <td>{entry.breakOut || "-"}</td>
+                        <td>{entry.clockOut || "-"}</td>
+                        <td style={statusStyle}>{statusText}</td>
+                        {currentUser?.admin && (
+                          <td>
+                            {entry.status === "pending" && entry.isComplete ? (
+                              <>
+                                <button
+                                  style={{ marginRight: 5 }}
+                                  onClick={() => {
+                                    if (window.confirm(`Approve all time entries for ${entry.date}?`)) {
+                                      handleApprove(entry.logIds);
+                                    }
+                                  }}
+                                  className={styles.ApproveButton}
+                                  disabled={isProcessing}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Reject all time entries for ${entry.date}?`)) {
+                                      handleReject(entry.logIds);
+                                    }
+                                  }}
+                                  className={styles.RejectButton}
+                                  disabled={isProcessing}
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                </table>
+              </div>
+            </div>
+
+
             <div style={{
               textAlign: 'right',
               fontSize: '0.8rem',
