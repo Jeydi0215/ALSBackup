@@ -39,7 +39,8 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
             </svg>{" "}
             <span>Dashboard</span>
           </li>
-{/*           <li onClick={() => handlePageClick(2)}>
+          { currentUser?.admin === true && (
+          <li onClick={() => handlePageClick(2)}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -57,7 +58,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
               <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
             </svg>
             <span>Login History</span>
-          </li> */}
+          </li>)}
 
           <li onClick={() => handlePageClick(3)}>
             <svg
@@ -125,7 +126,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
             <span>Monitoring</span>
           </li> )}
 
-          <li onClick={() => handlePageClick(4)}>
+          {/* <li onClick={() => handlePageClick(4)}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -144,7 +145,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
               <path d="M11 12h1v4h1" />
             </svg>
             <span>About Page</span>
-          </li>
+          </li> */}
         </ul>
       </div>
 
