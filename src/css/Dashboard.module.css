@@ -17,7 +17,35 @@
   -o-transform: translateX(-5rem);
   min-height:90dvh;
 }
+.Dashboard th{
+  color:#03396C;
+  background-color:#fff;
+}
+.Dashboard td{
+  width:25%;
+}
+.Dashboard h2{
+  color:#03396c;
+  font-size:1.25em;
+}
+.Clock_day{
+  display: flex;
+  flex-direction: column;
+  gap:.5rem;
+}
+.Head_button{
+  display: flex;
+  gap:.5rem;
 
+}
+.Head_button button{
+  padding:.75rem;
+}
+
+.Clock_day{
+  padding-bottom: .75rem;
+  border-bottom: dashed 1px #03396C50;
+}
 @keyframes Page {
   to {
     transform: translateX(0);
@@ -220,7 +248,10 @@
   color: #333;
 }
 .Weekly {
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap:1rem;
+  padding: 1rem 2rem;
   border-radius: 10px;
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
@@ -251,11 +282,19 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+
 }
 .ReportText {
+  border-left: solid 3px #03396C;
+  padding-left: .5rem;
   font-size: 1.25em;
   font-weight: bold;
-  color: #5d6679;
+  color: #03396C;
+}
+.Clock_afternoon, .Clock_morning{
+  display: flex;
+  flex-direction: column;
+  gap:.5rem;
 }
 .ExportButton {
   background-color: #4caf50;
@@ -308,11 +347,32 @@
   .Clockin1, .Clockin2{
     width:48%;
   }
+  .Dashboard td{
+    font-size: 1.2em;
+  }
 }
 @media (max-width: 431px) {
+  .ReportText{
+    font-size: 1.25em;
+  }
+  .Weekly{
+    padding:1rem .5rem;
+    border-radius: 0;
+  }
+  .Weekly_head{
+    flex-direction: column;
+    gap:.5rem;
+    align-items: flex-start;
+  }
+  .Head_button button{
+    padding: .35rem;
+  }
   .Dashboard {
     width: 100%;
     padding:0;
+  }
+  .Dashboard td{
+    font-size: .9em;
   }
   .Dash_title{
     border-radius: 0;
@@ -345,10 +405,7 @@
   .Time_widget {
     font-size: 1.25em;
   }
-  .ReportText {
-    font-size: 0.75em;
-    font-weight: regular;
-  }
+
   .Filter {
     padding: 0.5rem;
   }
