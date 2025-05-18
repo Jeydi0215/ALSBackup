@@ -655,6 +655,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                         entry.status === 'pending'  ? 'orange' :
                         'inherit'
                     };
+                    // sample comment
 
                     return (
                       <tr key={index}>

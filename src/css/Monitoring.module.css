@@ -166,7 +166,7 @@ th {
   outline: #03396c50 solid 1px;
 }
 
-select {
+/* select {
   width: 20%;
 }
 
@@ -186,7 +186,7 @@ th {
   border: 1px solid #33333325;
   padding: 0.75rem;
   color: #383e49;
-}
+} */
 
 .Hold {
   display: flex;
@@ -251,6 +251,10 @@ th {
   cursor: pointer;
     border-radius: 0 5px 5px 0;
 }
+.Pending th{
+   color: #03396C;
+   background-color: #fff;
+}
 
 @keyframes appear {
   from {
@@ -277,6 +281,14 @@ th {
   .Widget_container {
     padding: 0 1rem;
   }
+  .Search input{
+    width:25%;
+  }
+  .Monitoring_left button{
+    width: 20%;
+  }
+  
+  
 }
 
 @media (max-width: 431px) {

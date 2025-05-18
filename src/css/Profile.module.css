@@ -65,7 +65,7 @@
   border: 1px dashed #33333350;
 }
 
-.Profile_title {
+/* .Profile_title {
   padding: 1rem 0 1rem 1rem;
   background-color: #03396c;
   width: 100% !important;
@@ -76,7 +76,7 @@
   -ms-border-radius: 5px;
   -o-border-radius: 5px;
   font-size: 1.5em;
-}
+} */
 
 .Bottom_button button,
 .Edit,
@@ -211,8 +211,28 @@
   background-color: #dc3545;
   color: white;
 }
+.Profile_up{
+  background-color: #03396c;
+  color:#fff;
+  align-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding:1rem;
+  font-size: 1.5em;
+
+}
+
+.Profile_up img{
+  width:1.5rem;
+  display: none;
+}
 
 @media (min-width: 768px) and (max-width: 1024px) {
+  .Profile_up img{
+    display: block;
+    width:2rem;
+  }
   .Profile {
     width: 100%;
     padding: 0;
@@ -266,10 +286,16 @@
   .Bottom_button button {
     font-size: 0.85em;
   }
-
+  .Profilee{
+    display: flex;
+    
+  }
 }
 
 @media (max-width: 431px) {
+  .Profile_up img{
+    display: block;
+  }
   .Logg{
     display: block;
   }
