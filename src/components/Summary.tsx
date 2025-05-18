@@ -51,7 +51,7 @@ const Summary = ({ userId }: SummaryProps) => {
     };
 
     fetchLogs();
-  }, [currentUser, userId]); 
+  }, [currentUser, userId]);
 
   const getFilteredLogs = () => {
     const now = new Date();
@@ -96,27 +96,71 @@ const Summary = ({ userId }: SummaryProps) => {
       }
     });
 
-    const parseMinutes = (str: string) => {
-      const [time, period] = str.split(" ");
+
+    const parseTimeStringToDate = (timeStr: string, dateStr: string) => {
+      const [time, period] = timeStr.split(" ");
       let [h, m] = time.split(":").map(Number);
       if (period === "PM" && h < 12) h += 12;
       if (period === "AM" && h === 12) h = 0;
-      return h * 60 + m;
+
+      const [month, day, year] = dateStr.split("/");
+      const date = new Date(`${year}-${month}-${day}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+      return date;
     };
 
+
     Object.values(summaryMap).forEach((day: any) => {
-      const { clockIn, clockOut, breakIn, breakOut } = day;
-      if (clockIn && clockOut) {
-        let workMins = parseMinutes(clockOut) - parseMinutes(clockIn);
+      const { clockIn, clockOut, breakIn, breakOut, date } = day;
+
+      let adjustedClockIn = null;
+      let adjustedClockOut = null;
+
+      if (clockIn) {
+        const clockInDate = parseTimeStringToDate(clockIn, date);
+        const eightAM = new Date(clockInDate);
+        eightAM.setHours(8, 0, 0, 0);
+        adjustedClockIn = clockInDate < eightAM ? eightAM : clockInDate;
+      }
+
+      if (clockOut) {
+        const clockOutDate = parseTimeStringToDate(clockOut, date);
+        const fivePM = new Date(clockOutDate);
+        fivePM.setHours(17, 0, 0, 0);
+
+        const eightPM = new Date(clockOutDate);
+        eightPM.setHours(20, 0, 0, 0);
+
+        // If after 8PM, discard the day
+        if (clockOutDate >= eightPM) {
+          adjustedClockIn = null;
+          adjustedClockOut = null;
+        } else if (clockOutDate >= fivePM) {
+          adjustedClockOut = fivePM;
+        } else {
+          adjustedClockOut = clockOutDate;
+        }
+      }
+
+      if (adjustedClockIn && adjustedClockOut) {
+        let workMins = (adjustedClockOut.getTime() - adjustedClockIn.getTime()) / 60000;
+
         if (breakIn && breakOut) {
-          workMins -= (parseMinutes(breakOut) - parseMinutes(breakIn));
-          day.breakTime = formatMins(parseMinutes(breakOut) - parseMinutes(breakIn));
+          const breakStart = parseTimeStringToDate(breakIn, date);
+          const breakEnd = parseTimeStringToDate(breakOut, date);
+          const breakMins = (breakEnd.getTime() - breakStart.getTime()) / 60000;
+          workMins -= breakMins;
+          day.breakTime = formatMins(breakMins);
         } else {
           day.breakTime = "00:00";
         }
-        day.workTime = formatMins(workMins);
+
+        day.workTime = formatMins(Math.max(workMins, 0));
+      } else {
+        day.workTime = "00:00";
+        day.breakTime = "00:00";
       }
     });
+
 
     return Object.values(summaryMap)
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())

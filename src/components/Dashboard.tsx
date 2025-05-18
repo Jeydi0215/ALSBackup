@@ -209,21 +209,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   useEffect(() => {
   if (!currentUser) return;
 
-  let q;
-
-  if (currentUser.admin) {
-    q = query(
-      collection(db, "clockLog"),
-      where("status", "==", "pending"),
-      orderBy("time", "desc")
-    );
-  } else {
-    q = query(
-      collection(db, "clockLog"),
-      where("uid", "==", currentUser.uid),
-      orderBy("time", "desc")
-    );
-  }
+  const q = currentUser.admin
+    ? query(
+        collection(db, "clockLog"),
+        where("status", "==", "pending"),
+        orderBy("time", "desc")
+      )
+    : query(
+        collection(db, "clockLog"),
+        where("uid", "==", currentUser.uid),
+        orderBy("time", "desc")
+      );
 
   const unsubscribe = onSnapshot(q, async (querySnapshot) => {
     const logs = querySnapshot.docs.map(doc => ({
@@ -240,7 +236,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         year: "numeric"
       });
 
-      // Initialize with "-" for all fields
       const newTimestamps = {
         clockIn: "-",
         breakIn: "-",
@@ -248,30 +243,39 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         clockOut: "-"
       };
 
-      // Only process today's logs
       const todayLogs = logs.filter(log => log.date === today);
-      
-      // Update timestamps with today's data
+
       todayLogs.forEach(log => {
+        let timeStr = log.timeString;
+
+        // Adjust clock-in before 8:00 AM
+        if (log.key === "clockIn" && parseTimeToMinutes(timeStr) < 8 * 60) {
+          timeStr = "8:00 AM (auto)";
+        }
+
+        // Adjust clock-out between 5:00 PM and 8:00 PM
+        if (
+          log.key === "clockOut" &&
+          parseTimeToMinutes(timeStr) >= 17 * 60 &&
+          parseTimeToMinutes(timeStr) < 20 * 60
+        ) {
+          timeStr = "5:00 PM (auto)";
+        }
+
         if (log.key && newTimestamps[log.key] === "-") {
-          newTimestamps[log.key] = log.timeString;
+          newTimestamps[log.key] = timeStr;
         }
       });
 
       setTimestamps(newTimestamps);
 
-      // Auto clock-out logic (unchanged)
-      const userLogsToday = todayLogs.filter(log => log.uid === currentUser.uid);
-      const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
-      const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
-      const hasAutoClockOut = userLogsToday.some(
-        log => log.key === "clockOut" && log.timeString === "5:00 PM"
-      );
-
+      // Handle missed 8PM clock-out
+      const hasClockIn = todayLogs.some(log => log.key === "clockIn");
+      const hasClockOut = todayLogs.some(log => log.key === "clockOut");
       const now = new Date();
-      const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
+      const isAfter8PM = now.getHours() >= 20;
 
-      if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
+      if (hasClockIn && !hasClockOut && isAfter8PM && !isProcessing) {
         setIsProcessing(true);
         try {
           await addDoc(collection(db, "clockLog"), {
@@ -282,10 +286,11 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             date: today,
             status: "pending",
             imageUrl: "",
+            location: "",
             userFirstName: userData?.firstName,
             userSurname: userData?.surname,
             isAuto: true,
-            notes: "Employee failed to clock out by 8:00 PM cutoff"
+            notes: "Missed 8:00 PM clock-out cutoff"
           });
         } catch (err) {
           console.error("Auto clock-out failed:", err);
@@ -299,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   });
 
   return () => unsubscribe();
-}, [currentUser, isProcessing, userData]);
+}, [currentUser, isProcessing, userData]); 
 
   // Update real-time clock
   useEffect(() => {
