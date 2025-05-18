@@ -255,7 +255,7 @@ const History = () => {
     : "Employee History";
 
   return (
-    <div className={styles.EmployeeList}>
+    <div className={styles.History}>
       <div className={styles.List_head}>
         {currentUser?.admin ? (
           <select
@@ -272,7 +272,6 @@ const History = () => {
         ) : (
           <span>{selectedEmployeeName}</span>
         )}
-        <button>Back</button>
       </div>
 
       <div className={styles.List_inner}>
@@ -282,10 +281,7 @@ const History = () => {
             <option value="week">This Week</option>
             <option value="month">This Month</option>
           </select>
-          <div className={styles.Button_inner}>
-            <button>Filter by Date</button>
-            <button onClick={handleGenerateReport}>Generate Report</button>
-          </div>
+          <button onClick={handleGenerateReport}>Generate Report</button>
         </div>
 
         {/* {loading ? (
@@ -296,10 +292,9 @@ const History = () => {
             <tr>
               <th>Date</th>
               <th>Clock In</th>
-              <th>Break Out</th>
-              <th>Break In</th>
+              {/* <th>Break Out</th>
+              <th>Break In</th> */}
               <th>Clock Out</th>
-              <th>Working Hours</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -308,10 +303,9 @@ const History = () => {
               <tr key={day.date}>
                 <td>{day.date}</td>
                 <td>{day.clockIn || "-"}</td>
-                <td>{day.breakOut || "-"}</td>
-                <td>{day.breakIn || "-"}</td>
+                {/* <td>{day.breakOut || "-"}</td>
+                <td>{day.breakIn || "-"}</td> */}
                 <td>{day.clockOut || "-"}</td>
-                <td>{day.workingHours}</td>
                 <td>
                   <select
                     value={day.status}

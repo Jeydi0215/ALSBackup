@@ -13,6 +13,7 @@ import Mail from "../assets/mail.png";
 import Location from "../assets/location.png";
 import Age from "../assets/age.png";
 import Call from "../assets/call.png";
+import Logout from '../assets/logout-w.png'
 
 import Scheduled from "./Scheduled";
 import Summary from "./Summary";
@@ -126,7 +127,10 @@ const Profile = () => {
 
   return (
     <div className={styles.Profile}>
-      <span className={styles.Profile_title}>Profile</span>
+      <span className={styles.Profile_up}>
+        <span  className={styles.Profile_title}>Profile</span>
+        <img src={Logout} />
+      </span>
       <div className={styles.Profile_inner}>
         <div className={styles.Profile_top}>
           <div className={styles.Profile_picture}>
