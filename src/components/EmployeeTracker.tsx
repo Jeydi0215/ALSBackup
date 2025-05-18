@@ -158,7 +158,6 @@ const EmployeeTracker = () => {
 
   return (
     <div className={styles.EmployeeTracker}>
-      <h2>Employee Tracker</h2>
       <table>
         <thead>
           <tr>

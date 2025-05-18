@@ -20,6 +20,9 @@
   -ms-transform: translateX(-5rem);
   -o-transform: translateX(-5rem);
 }
+.Logg{
+  display: none;
+}
 
 @keyframes Page {
   to {
@@ -263,9 +266,13 @@
   .Bottom_button button {
     font-size: 0.85em;
   }
+
 }
 
 @media (max-width: 431px) {
+  .Logg{
+    display: block;
+  }
   .Profile,
   .Profile_picture {
     width: 100%;

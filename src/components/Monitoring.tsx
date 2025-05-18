@@ -1,36 +1,34 @@
-import { useState , useEffect} from 'react'
+import { useState, useEffect } from 'react';
 
-import styles from '../css/Monitoring.module.css'
-import EmployeeTracker from './EmployeeTracker'
-import Pending from './Pending'
-import Logged from '../assets/logged.png'
-// import Search from '../assets/search.png'
-import Clock from '../assets/clock.png'
-import Coffee from '../assets/coffee.png'
-import Out from '../assets/logout.png'
+import styles from '../css/Monitoring.module.css';
+import EmployeeTracker from './EmployeeTracker';
+import EmployeeList from './EmployeeList';
+import Pending from './Pending';
+
+import Logged from '../assets/logged.png';
+import Clock from '../assets/clock.png';
+import Coffee from '../assets/coffee.png';
+import Out from '../assets/logout.png';
+
 import { useMonitoring } from '../context/MonitoringContext';
-import { db } from '../firebase'
+import { db } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+type Props = {
+  handlePageClick: (value: number) => void;
+};
 
+const Monitoring = ({ handlePageClick }: Props) => {
+    const [activeTab, setActiveTab] = useState('list');
 
-const Monitoring = () => {
-    const [activeButton, setActiveButton] = useState('tracker'); 
-    const [TableShow, setTableShow] = useState(false)
-    const handleTableClick = (buttonName) => {
-        setTableShow( !TableShow )
-        setActiveButton(buttonName);
-    }
     const [statusCounts, setStatusCounts] = useState({
         working: 0,
         onBreak: 0,
         clockedOut: 0
     });
 
-
     const { loggedInCount, totalUsers } = useMonitoring();
 
     useEffect(() => {
-        // Get today's date in the same format as your clockLog documents
         const today = new Date().toLocaleDateString("en-US", {
             month: "long",
             day: "2-digit",
@@ -44,8 +42,8 @@ const Monitoring = () => {
         );
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const employeeStatuses = new Map(); // Track latest status per employee
-            
+            const employeeStatuses = new Map();
+
             querySnapshot.forEach((doc) => {
                 const log = doc.data();
                 if (!employeeStatuses.has(log.uid)) {
@@ -53,13 +51,12 @@ const Monitoring = () => {
                 }
             });
 
-            // Count statuses
             let working = 0;
             let onBreak = 0;
             let clockedOut = 0;
 
             employeeStatuses.forEach((status) => {
-                switch(status) {
+                switch (status) {
                     case 'clockIn':
                         working++;
                         break;
@@ -71,6 +68,8 @@ const Monitoring = () => {
                         break;
                     case 'clockOut':
                         clockedOut++;
+                        break;
+                    default:
                         break;
                 }
             });
@@ -85,22 +84,23 @@ const Monitoring = () => {
         return () => unsubscribe();
     }, []);
 
-    return(
+    return (
         <div className={styles.Monitoring}>
             <span className={styles.Monitoring_title}>Employee Monitoring</span>
+
             <div className={styles.Widget_container}>
                 <div className={styles.Widget}>
                     <div className={styles.Widget_inner}>
                         <span>Logged In</span>
                         <img src={Logged} alt="User icon" />
                     </div>
-                    <span className={styles.Count}>{loggedInCount-1}/{totalUsers}</span>
+                    <span className={styles.Count}>{loggedInCount - 1}/{totalUsers}</span>
                 </div>
 
                 <div className={styles.Widget}>
                     <div className={styles.Widget_inner}>
                         <span>Working</span>
-                        <img src={Clock} alt="User icon" />
+                        <img src={Clock} alt="Clock icon" />
                     </div>
                     <span className={styles.Count}>{statusCounts.working}/{totalUsers}</span>
                 </div>
@@ -108,7 +108,7 @@ const Monitoring = () => {
                 <div className={styles.Widget}>
                     <div className={styles.Widget_inner}>
                         <span>On Break</span>
-                        <img src={Coffee} alt="User icon" />
+                        <img src={Coffee} alt="Coffee icon" />
                     </div>
                     <span className={styles.Count}>{statusCounts.onBreak}/{totalUsers}</span>
                 </div>
@@ -116,7 +116,7 @@ const Monitoring = () => {
                 <div className={styles.Widget}>
                     <div className={styles.Widget_inner}>
                         <span>Clock Out</span>
-                        <img src={Out} alt="User icon" />
+                        <img src={Out} alt="Logout icon" />
                     </div>
                     <span className={styles.Count}>{statusCounts.clockedOut}/{totalUsers}</span>
                 </div>
@@ -125,41 +125,34 @@ const Monitoring = () => {
             <div className={styles.Monitoring_table}>
                 <div className={styles.Monitoring_inner}>
                     <div className={styles.Monitoring_left}>
+                                                <button
+                            className={activeTab === 'list' ? styles.Active : ''}
+                            onClick={() => setActiveTab('list')}
+                        >
+                            Employee List
+                        </button>
                         <button
-                            className={activeButton === 'tracker' ? styles.Active : ''}
-                            onClick={() => handleTableClick('tracker')}
+                            className={activeTab === 'tracker' ? styles.Active : ''}
+                            onClick={() => setActiveTab('tracker')}
                         >
                             Tracker
                         </button>
+
                         <button
-                            className={activeButton === 'approval' ? styles.Active : ''}
-                            onClick={() => handleTableClick('approval')}
+                            className={activeTab === 'approval' ? styles.Active : ''}
+                            onClick={() => setActiveTab('approval')}
                         >
                             Approval
                         </button>
                     </div>
-
-                    {/* <div className={styles.Monitoring_right}>
-                        <div className={styles.Right_inner}>
-                            <input type="text" placeholder='Search...'/>
-                            <img src={Search} alt="Search icon" />
-                        </div>
-                        <select name="" id="">
-                            <option value="">All</option>
-                        </select>
-                    </div> */}
                 </div>
-                {
-                    TableShow ?<Pending /> : <EmployeeTracker/>
-                }
-                
-                
 
-
+                {activeTab === 'tracker' && <EmployeeTracker />}
+                {activeTab === 'list' && <EmployeeList handlePageClick={handlePageClick} />}
+                {activeTab === 'approval' && <Pending />}
             </div>
         </div>
-    )
-}
-
+    );
+};
 
 export default Monitoring;

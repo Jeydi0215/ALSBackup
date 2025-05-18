@@ -173,7 +173,7 @@ const Home = ({
       case 4:
         return <About />;
       case 5:
-          return <Monitoring />;
+          return <Monitoring handlePageClick={handlePageClick}/>;
       case 6:
           return <EmployeeList />;
       default:

@@ -371,8 +371,11 @@
     width: 100%;
     padding:0;
   }
-  .Dashboard td{
+  .Dashboard th{
     font-size: .9em;
+  }
+  .Dashboard td{
+    font-size: .8em;
   }
   .Dash_title{
     border-radius: 0;
