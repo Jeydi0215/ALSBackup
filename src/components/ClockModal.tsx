@@ -11,11 +11,26 @@ import * as faceapi from "face-api.js";
 type Props = {
   handleCameraClick: () => void;
   showCamera: boolean;
-  onSubmitClockLog: (image: string, timestamp: string, imageUrl?: string) => void;
+  onSubmitClockLog: (
+    image: string, 
+    timestamp: string, 
+    imageUrl?: string,
+    location?: {
+      latitude: number;
+      longitude: number;
+      address?: string;
+    }
+  ) => void;
 };
 
 const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) => {
   const [shareLocation, setShareLocation] = useState(false);
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address?: string;
+  } | undefined>();
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -35,7 +50,67 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     loadModels();
   }, []);
 
-  const handleLocationClick = () => setShareLocation(!shareLocation);
+  const handleLocationClick = async () => {
+  if (!shareLocation) {
+    try {
+      const position = await getCurrentPosition();
+      const { latitude, longitude } = position.coords;
+      
+      const address = await reverseGeocode(latitude, longitude);
+      
+      setLocation({
+        latitude,
+        longitude,
+        address
+      });
+      setShareLocation(true);
+      setLocationError(null);
+    } catch (error) {
+      console.error("Error getting location:", error);
+      setLocationError("Failed to get location. Please check permissions.");
+      setShareLocation(false);
+      setLocation(undefined); // Changed from null to undefined
+    }
+  } else {
+    setLocation(undefined); // Changed from null to undefined
+    setShareLocation(false);
+  }
+};
+
+  const getCurrentPosition = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by your browser"));
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        (error) => reject(error),
+        { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
+  };
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const apiKey = "c6c93b6810d244328b09f39eb2e0ae06"; 
+      const response = await fetch(
+        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
+      );
+      const data = await response.json();
+      if (data.results.length > 0) {
+        return data.results[0].formatted;
+      }
+      return "Unknown location";
+    } catch (err) {
+      console.error("Geocoding error:", err);
+      return "Location lookup failed";
+    }
+  };
 
   const takePhoto = () => {
     const canvas = canvasRef.current;
@@ -108,11 +183,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       if (!hasFace) {
         alert("No face detected. Please retake the photo.");
         setIsUploading(false);
-        setCapturedImage(null); // optional: force retake
-        return; // 🚫 Prevent upload and save
+        setCapturedImage(null);
+        return;
       }
 
-      // ✅ Proceed only if face is detected
       const now = new Date();
       const formattedTimestamp = now.toLocaleString("en-US", {
         weekday: "long",
@@ -132,9 +206,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         timestamp: now.getTime(),
         formattedTime: formattedTimestamp,
         withLocation: shareLocation,
+        location: shareLocation ? location : null
       };
 
-      onSubmitClockLog(capturedImage, formattedTimestamp, imageUrl);
+      onSubmitClockLog(capturedImage, formattedTimestamp, imageUrl, shareLocation ? location : undefined);
 
       setCapturedImage(null);
       handleCameraClick();
@@ -180,6 +255,20 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           <video ref={videoRef} className={styles.User} autoPlay muted playsInline />
         )}
         <canvas ref={canvasRef} style={{ display: "none" }} />
+
+        {shareLocation && location && (
+        <div className={styles.LocationInfo}>
+          <h4>Location Information:</h4>
+          <p>Coordinates: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</p>
+          {location.address && <p>Address: {location.address}</p>}
+        </div>
+      )}
+
+      {locationError && (
+        <div className={styles.LocationError}>
+          <p>{locationError}</p>
+        </div>
+      )}
 
         <div className={styles.Button}>
           <div className={styles.Button_inner}>

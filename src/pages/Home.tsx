@@ -13,7 +13,8 @@ import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
 import EmployeeList from '../components/EmployeeList'
-import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc, GeoPoint } from "firebase/firestore";
+
 
 
 type Props = {
@@ -33,6 +34,11 @@ interface ClockLogEntry {
   date: string;
   image?: string;
   status?: string;
+location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
 }
 
 const Home = ({
@@ -50,7 +56,16 @@ const Home = ({
     setShowCamera((prev) => !prev);
   };
 
-  const handleClockLogSubmit = async (imageUrl?: string) => {
+  const handleClockLogSubmit = async (
+  image: string,              // First parameter matches what ClockModal sends
+  formattedTimestamp: string, // Second parameter
+  imageUrl?: string,          // Third parameter
+  location?: {               // Fourth parameter
+    latitude: number;
+    longitude: number;
+    address?: string;
+  }
+) => {
   if (!currentUser || !currentKey) return;
 
   // Get current Manila time
@@ -127,8 +142,13 @@ const Home = ({
       imageUrl,
       status: "pending",
       userFirstName: currentUser.userFirstName,
-      userSurname: currentUser.userSurname
-    });
+      userSurname: currentUser.userSurname,
+     location: location ? {
+    coordinates: new GeoPoint(location.latitude, location.longitude),
+    address: location.address,
+    timestamp: serverTimestamp()
+  } : null
+});
   } catch (error) {
     console.error("Error saving clock log:", error);
   } finally {

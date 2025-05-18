@@ -207,108 +207,99 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser) return;
+  if (!currentUser) return;
 
-    let q;
+  let q;
 
-    if (currentUser.admin) {
-      // Admin sees all pending logs and their own logs
-      q = query(
-        collection(db, "clockLog"),
-        where("status", "==", "pending"),
-        orderBy("time", "desc")
+  if (currentUser.admin) {
+    q = query(
+      collection(db, "clockLog"),
+      where("status", "==", "pending"),
+      orderBy("time", "desc")
+    );
+  } else {
+    q = query(
+      collection(db, "clockLog"),
+      where("uid", "==", currentUser.uid),
+      orderBy("time", "desc")
+    );
+  }
+
+  const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const logs = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ClockLogEntry[];
+
+    setClockLog(logs);
+
+    if (!currentUser.admin) {
+      const today = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric"
+      });
+
+      // Initialize with "-" for all fields
+      const newTimestamps = {
+        clockIn: "-",
+        breakIn: "-",
+        breakOut: "-",
+        clockOut: "-"
+      };
+
+      // Only process today's logs
+      const todayLogs = logs.filter(log => log.date === today);
+      
+      // Update timestamps with today's data
+      todayLogs.forEach(log => {
+        if (log.key && newTimestamps[log.key] === "-") {
+          newTimestamps[log.key] = log.timeString;
+        }
+      });
+
+      setTimestamps(newTimestamps);
+
+      // Auto clock-out logic (unchanged)
+      const userLogsToday = todayLogs.filter(log => log.uid === currentUser.uid);
+      const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
+      const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
+      const hasAutoClockOut = userLogsToday.some(
+        log => log.key === "clockOut" && log.timeString === "5:00 PM"
       );
-    } else {
-      // Regular user sees only their own logs
-      q = query(
-        collection(db, "clockLog"),
-        where("uid", "==", currentUser.uid),
-        orderBy("time", "desc")
-      );
-    }
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const logs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClockLogEntry[];
+      const now = new Date();
+      const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
 
-      setClockLog(logs);
-
-      // Auto clock out logic for regular users
-      if (!currentUser.admin) {
-        const today = new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "2-digit",
-          year: "numeric"
-        });
-        const userLogsToday = logs.filter(log => log.date === today && log.uid === currentUser.uid);
-
-        const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
-        const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
-        const hasAutoClockOut = userLogsToday.some(
-          log => log.key === "clockOut" && log.timeString === "5:00 PM"
-        );
-
-        const now = new Date();
-        const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
-
-
-        console.log('Current time:', now, 'Is after 8:00 PM?', isAfter8PM);
-        console.log('Today:', today);
-        console.log('User logs today:', userLogsToday);
-        console.log('Has clock in?', hasClockIn,
-          'Has clock out?', hasClockOut,
-          'Has auto clock out?', hasAutoClockOut);
-
-
-        // Change this condition
-        if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
-          setIsProcessing(true);
-          console.log('Creating auto clock-out...');
-
-          try {
-
-            await addDoc(collection(db, "clockLog"), {
-              uid: currentUser.uid,
-              key: "clockOut",
-              time: null,
-              timeString: "NULL (Missed 8PM)",
-              date: today,
-              status: "pending",
-              imageUrl: "",
-              userFirstName: userData?.firstName,
-              userSurname: userData?.surname,
-              isAuto: true,
-              notes: "Employee failed to clock out by 8:00 PM cutoff"
-            });
-          } catch (err) {
-            console.error("Auto clock-out failed:", err);
-          } finally {
-            setIsProcessing(false);
-          }
+      if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
+        setIsProcessing(true);
+        try {
+          await addDoc(collection(db, "clockLog"), {
+            uid: currentUser.uid,
+            key: "clockOut",
+            time: null,
+            timeString: "NULL (Missed 8PM)",
+            date: today,
+            status: "pending",
+            imageUrl: "",
+            userFirstName: userData?.firstName,
+            userSurname: userData?.surname,
+            isAuto: true,
+            notes: "Employee failed to clock out by 8:00 PM cutoff"
+          });
+        } catch (err) {
+          console.error("Auto clock-out failed:", err);
+        } finally {
+          setIsProcessing(false);
         }
       }
+    }
+  }, (error) => {
+    console.error("Error fetching logs:", error);
+  });
 
-
-
-      // Only update timestamps for non-admin users
-      if (!currentUser.admin) {
-        const latestEntries = logs.reduce((acc, log) => {
-          if (log.key && !acc[log.key]) {
-            acc[log.key] = log.timeString;
-          }
-          return acc;
-        }, {} as Record<string, string>);
-
-        setTimestamps(prev => ({ ...prev, ...latestEntries }));
-      }
-    }, (error) => {
-      console.error("Error fetching logs:", error);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser, isProcessing, userData]);
+  return () => unsubscribe();
+}, [currentUser, isProcessing, userData]);
 
   // Update real-time clock
   useEffect(() => {

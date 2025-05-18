@@ -153,6 +153,33 @@
   -webkit-filter: brightness(0.75);
 }
 
+.LocationInfo {
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  font-size: 0.9rem;
+}
+
+.LocationInfo h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.LocationInfo p {
+  margin: 5px 0;
+  color: #555;
+}
+
+.LocationError {
+  color: #f44336;
+  font-size: 0.8rem;
+  margin: 10px 0;
+  padding: 5px;
+  background-color: #ffebee;
+  border-radius: 4px;
+}
+
 @media (min-width: 768px) and (max-width: 1024px) {
   .ClockModal_inner {
     width: 75%;
