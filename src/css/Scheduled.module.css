@@ -1,0 +1,87 @@
+.Scheduled {
+  display: flex;
+  gap: 1rem;
+  flex-direction: column;
+  animation: Appear 500ms ease forwards;
+}
+@keyframes Appear {
+  from {
+    filter: blur(10px);
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.Schedule_head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.Schedule_head select,
+.Schedule_head option {
+  padding: 0.75rem 0.5rem;
+  background-color: #fff;
+  border-radius: 5px;
+  border: solid 1px #03396c;
+  color: #03396c;
+  width: 10%;
+}
+
+.Schedule_head span {
+  color: #9d9d9d;
+  font-weight: bold;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  border: 2px solid #333;
+  border-radius: 5px;
+  overflow: hidden; /* Ensures the border-radius clips */
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 12px;
+  text-align: center;
+}
+
+thead {
+  background-color: #f0f0f0;
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .Schedule_head span {
+    font-size: 1.25em;
+    text-align: right;
+  }
+  .Schedule_head {
+    gap: 1rem;
+  }
+  .Schedule_head select,
+  .Schedule_head option {
+    width: 20%;
+    padding: 0.5rem;
+    font-size: 0.75em;
+  }
+}
+
+@media (max-width: 431px) {
+  .Schedule_head span {
+    font-size: 0.75em;
+    text-align: right;
+  }
+  .Schedule_head {
+    gap: 1rem;
+  }
+  .Schedule_head select,
+  .Schedule_head option {
+    width: 40%;
+    padding: 0.5rem;
+    font-size: 0.75em;
+  }
+}
