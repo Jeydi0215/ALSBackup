@@ -6,7 +6,7 @@ import Home from "./pages/Home";
 import PrivateRoute from "./components/PrivateRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { MonitoringProvider } from "./context/MonitoringContext";
-
+import "./css/App.module.css"
 
 function App() {
   const [isLogout, setIsLogout] = useState(false);

@@ -22,31 +22,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDocRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userDocRef);
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const userDocRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userDocRef);
 
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          setCurrentUser({
-            ...user,
-            admin: userData.admin,
-            approved: userData.approved,
-            userFirstName: userData.firstName,
-            userSurname: userData.surname
-          });
-        } else {
-          setCurrentUser(user); // fallback in case no doc exists
-        }
-      } else {
-        setCurrentUser(null);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        setCurrentUser({
+          ...user,
+          admin: userData.admin,
+          approved: userData.approved,
+          userFirstName: userData.firstName,
+          userSurname: userData.surname
+        });
       }
-      setLoading(false);
-    });
+    } else {
+      setCurrentUser(null);
+    }
+    setLoading(false);
+  });
 
-    return unsubscribe;
-  }, []);
+  return unsubscribe;
+}, []);
 
   return (
     <AuthContext.Provider value={{ currentUser, loading }}>

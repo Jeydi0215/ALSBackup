@@ -1,8 +1,7 @@
-import { Navigate } from "react-router-dom";
-import { useAuthState } from "react-firebase-hooks/auth"; // OR directly from firebase hooks
-import { auth, db } from "../firebase"; 
-import { JSX } from "react";
-import { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth, db } from "../firebase";
+import { JSX, useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 
 type Props = {
@@ -12,7 +11,8 @@ type Props = {
 const PrivateRoute = ({ children }: Props) => {
   const [user, loading] = useAuthState(auth);
   const [checkingApproval, setCheckingApproval] = useState(true);
-  const[isApproved, setIsApproved] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const checkApproval = async () => {
@@ -20,8 +20,7 @@ const PrivateRoute = ({ children }: Props) => {
         const docRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          setIsApproved(data.approved === true);
+          setIsApproved(docSnap.data().approved === true);
         }
       }
       setCheckingApproval(false);
@@ -32,12 +31,19 @@ const PrivateRoute = ({ children }: Props) => {
     }
   }, [user, loading]);
 
-  if (loading || (user && checkingApproval)) {
-    return <div>Loading...</div>; // Show spinner or loading screen
+  // If still loading auth state, show a persistent loader
+  if (loading) {
+    return <div className="fullscreen-loader">Loading...</div>;
   }
 
+  // If auth check is done but approval is still being verified
+  if (user && checkingApproval) {
+    return <div className="fullscreen-loader">Verifying access...</div>;
+  }
+
+  // Redirect conditions
   if (!user || !isApproved) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   return children;

@@ -4,6 +4,8 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import {getDatabase} from "firebase/database";
+import { setPersistence, browserLocalPersistence } from "firebase/auth";
+
 
 // --- Main App ---
 const firebaseConfig = {
@@ -52,5 +54,7 @@ const auth2 = getAuth2(app2);
 const db2 = getFirestore2(app2);
 const firebaseStorage = getStorage2(app2);
 const imageDb = getStorage(app2);
+
+setPersistence(auth, browserLocalPersistence);
 
 export { app, analytics, auth, db, imageDb, app2, auth2, db2, firebaseStorage, rt};
