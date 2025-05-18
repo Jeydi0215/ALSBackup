@@ -3,11 +3,13 @@ import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import {getDatabase} from "firebase/database";
 
 // --- Main App ---
 const firebaseConfig = {
   apiKey: "AIzaSyBwlqZVctCQhfKhKr6nIy3iBRHFdQMitdM",
   authDomain: "dtr-for-als.firebaseapp.com",
+  databaseURL: "https://dtr-for-als-default-rtdb.asia-southeast1.firebasedatabase.app", 
   projectId: "dtr-for-als",
   storageBucket: "dtr-for-als.appspot.com",
   messagingSenderId: "739537628398",
@@ -39,6 +41,7 @@ const app2 = getApps().find(app => app.name === "secondary")
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const rt = getDatabase(app)
 
 // For secondary app (optional usage)
 import {getAuth as getAuth2} from "firebase/auth";
@@ -50,4 +53,4 @@ const db2 = getFirestore2(app2);
 const firebaseStorage = getStorage2(app2);
 const imageDb = getStorage(app2);
 
-export { app, analytics, auth, db, imageDb, app2, auth2, db2, firebaseStorage};
+export { app, analytics, auth, db, imageDb, app2, auth2, db2, firebaseStorage, rt};

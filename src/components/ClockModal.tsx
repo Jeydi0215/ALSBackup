@@ -7,6 +7,7 @@ import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { imageDb } from "../firebase";
 
 import * as faceapi from "face-api.js";
+import { getOpenCageKey } from '../utils/apiKeys';
 
 type Props = {
   handleCameraClick: () => void;
@@ -96,21 +97,20 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   };
 
   const reverseGeocode = async (lat: number, lng: number) => {
-    try {
-      const apiKey = "c6c93b6810d244328b09f39eb2e0ae06"; 
-      const response = await fetch(
-        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
-      );
-      const data = await response.json();
-      if (data.results.length > 0) {
-        return data.results[0].formatted;
-      }
-      return "Unknown location";
-    } catch (err) {
-      console.error("Geocoding error:", err);
-      return "Location lookup failed";
-    }
-  };
+  try {
+    const apiKey = await getOpenCageKey(); // Get from Realtime DB
+    
+    const response = await fetch(
+      `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
+    );
+    
+    const data = await response.json();
+    return data.results[0]?.formatted || "Unknown location";
+  } catch (error) {
+    console.error("Geocoding failed:", error);
+    return "Location lookup failed";
+  }
+};
 
   const takePhoto = () => {
     const canvas = canvasRef.current;
