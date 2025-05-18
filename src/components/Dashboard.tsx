@@ -640,8 +640,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                     <th>Date</th>
                     <th>Break Out</th>
                     <th>Clock Out</th>
-                    <th>Status</th>
-                    {currentUser?.admin && <th>Actions</th>}
+                    {/* <th>Status</th>
+                    {currentUser?.admin && <th>Actions</th>} */}
                   </tr>
                 </thead>
                 <tbody>
@@ -662,7 +662,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                         <td>{entry.date}</td>
                         <td>{entry.breakOut || "-"}</td>
                         <td>{entry.clockOut || "-"}</td>
-                        <td style={statusStyle}>{statusText}</td>
+                        {/* <td style={statusStyle}>{statusText}</td>
                         {currentUser?.admin && (
                           <td>
                             {entry.status === "pending" && entry.isComplete ? (
@@ -695,7 +695,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                               <span>-</span>
                             )}
                           </td>
-                        )}
+                        )} */}
                       </tr>
                     );
                   })}
@@ -703,6 +703,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 </table>
               </div>
             </div>
+
+            
 
 
             <div style={{

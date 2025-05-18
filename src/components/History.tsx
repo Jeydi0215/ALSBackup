@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import styles from "../css/EmployeeList.module.css";
+import styles from "../css/History.module.css";
 import { useAuth } from "../context/AuthContext";
 import { collection, query, where, orderBy, getDocs, doc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
