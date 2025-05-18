@@ -5,7 +5,7 @@ import { useAuth, ExtendedUser } from "../context/AuthContext";
 type Props = {
   handleLogoutClick: () => void;
   pageNumber: number;
-  handlePageClick: (value: number) => void;
+  handlePageClick: (value: number, employeeId?: string) => void;
   currentUser: ExtendedUser | null;
 };
 

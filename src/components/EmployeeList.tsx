@@ -95,7 +95,7 @@ useEffect(() => {
           <tbody>
             {filteredEmployees.map((emp) => (
               <tr key={emp.uid}>
-                <td onClick={() => handlePageClick(3, emp.uid)}> {/* Pass employee ID */}
+                <td className={styles.clickableName} onClick={() => handlePageClick(3, emp.uid)}> {/* Pass employee ID */}
                   {emp.name}
                 </td>
                 <td>{emp.email}</td>

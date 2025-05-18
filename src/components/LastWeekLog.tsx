@@ -21,17 +21,22 @@ interface ClockLogEntry {
   date: string;
 }
 
-const LastWeekLog = () => {
+interface LastWeekLogProps {
+  userId?: string; // Add this prop
+}
+
+const LastWeekLog = ({ userId }: LastWeekLogProps) => {
   const { currentUser } = useAuth();
   const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
   const [lastWeekData, setLastWeekData] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    const targetUserId = userId || currentUser?.uid;
+    if (!targetUserId) return;
 
     const q = query(
       collection(db, "clockLog"),
-      where("uid", "==", currentUser.uid),
+      where("uid", "==", targetUserId),
       orderBy("time", "desc")
     );
 
@@ -45,7 +50,7 @@ const LastWeekLog = () => {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, userId]);
 
   useEffect(() => {
     if (clockLog.length === 0) return;

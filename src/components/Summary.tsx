@@ -21,18 +21,23 @@ interface ClockLogEntry {
   date: string;
 }
 
-const Summary = () => {
+interface SummaryProps {
+  userId?: string; // Add this prop
+}
+
+const Summary = ({ userId }: SummaryProps) => {
   const { currentUser } = useAuth();
   const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
   const [filter, setFilter] = useState<"week" | "month">("week");
 
   useEffect(() => {
     const fetchLogs = async () => {
-      if (!currentUser) return;
+      const targetUserId = userId || currentUser?.uid;
+      if (!targetUserId) return;
 
       const logsRef = query(
         collection(db, "clockLog"),
-        where("uid", "==", currentUser.uid),
+        where("uid", "==", targetUserId),
         orderBy("time", "desc")
       );
 
@@ -46,7 +51,7 @@ const Summary = () => {
     };
 
     fetchLogs();
-  }, [currentUser]);
+  }, [currentUser, userId]); 
 
   const getFilteredLogs = () => {
     const now = new Date();
