@@ -608,20 +608,6 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           </div>
         )}
 
-        {shareLocation && location && (
-        <div className={styles.LocationInfo}>
-          <h4>Location Information:</h4>
-          <p>Coordinates: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</p>
-          {location.address && <p>Address: {location.address}</p>}
-        </div>
-      )}
-
-      {locationError && (
-        <div className={styles.LocationError}>
-          <p>{locationError}</p>
-        </div>
-      )}
-
         <div className={styles.Button}>
           <div className={styles.Button_inner}>
             <button
