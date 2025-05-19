@@ -24,6 +24,30 @@ type Props = {
   ) => void;
 };
 
+// IndexedDB setup
+const DB_NAME = "attendanceDB";
+const DB_VERSION = 1;
+const STORE_NAME = "pendingAttendance";
+
+interface PendingAttendance {
+  id?: number;
+  image: string;
+  timestamp: string;
+  metadata: {
+    date: string;
+    time: string;
+    timestampMs: number;
+    formattedTime: string;
+    withLocation: boolean;
+    location?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+  uploaded: boolean;
+  createdAt: number;
+}
+
 const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) => {
   const [shareLocation, setShareLocation] = useState(false);
   const [location, setLocation] = useState<{
@@ -34,9 +58,213 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingUploads, setPendingUploads] = useState<number>(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Initialize IndexedDB
+  useEffect(() => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = (event) => {
+      console.error("IndexedDB error:", event.target.error);
+    };
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // Create object store for pending attendance records
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { 
+          keyPath: "id", 
+          autoIncrement: true 
+        });
+        
+        // Create indexes for easier querying
+        store.createIndex("uploaded", "uploaded", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+    };
+    
+    request.onsuccess = () => {
+      console.log("IndexedDB initialized successfully");
+      // Check for pending uploads on initialization
+      checkPendingUploads();
+    };
+  }, []);
+
+  // Network status listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log("App is online. Checking for pending uploads...");
+      syncPendingAttendance();
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      console.log("App is offline. Data will be stored locally.");
+    };
+    
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Check for pending uploads
+  const checkPendingUploads = () => {
+    const request = indexedDB.open(DB_NAME);
+    
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction([STORE_NAME], "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const index = store.index("uploaded");
+      
+      const countRequest = index.count(IDBKeyRange.only(false));
+      
+      countRequest.onsuccess = () => {
+        setPendingUploads(countRequest.result);
+      };
+      
+      transaction.oncomplete = () => {
+        db.close();
+      };
+    };
+  };
+
+  // Save attendance to IndexedDB
+  const saveToIndexedDB = (attendanceData: PendingAttendance) => {
+    return new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME);
+      
+      request.onerror = (event) => {
+        reject((event.target as IDBOpenDBRequest).error);
+      };
+      
+      request.onsuccess = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        
+        const addRequest = store.add(attendanceData);
+        
+        addRequest.onsuccess = () => {
+          console.log("Attendance data saved to IndexedDB:", addRequest.result);
+          checkPendingUploads();
+          resolve();
+        };
+        
+        addRequest.onerror = (event) => {
+          reject((event.target as IDBRequest).error);
+        };
+        
+        transaction.oncomplete = () => {
+          db.close();
+        };
+      };
+    });
+  };
+
+  // Sync pending attendance records with server
+  const syncPendingAttendance = async () => {
+    if (!navigator.onLine) {
+      console.log("Still offline. Can't sync data yet.");
+      return;
+    }
+    
+    console.log("Syncing pending attendance records...");
+    
+    const request = indexedDB.open(DB_NAME);
+    
+    request.onsuccess = async (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const transaction = db.transaction([STORE_NAME], "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const index = store.index("uploaded");
+      
+      const pendingRecords = await new Promise<PendingAttendance[]>((resolve) => {
+        const request = index.openCursor(IDBKeyRange.only(false));
+        const records: PendingAttendance[] = [];
+        
+        request.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
+          
+          if (cursor) {
+            records.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(records);
+          }
+        };
+      });
+      
+      console.log(`Found ${pendingRecords.length} pending records to sync`);
+      
+      for (const record of pendingRecords) {
+        try {
+          // Get address using reverse geocoding if location exists
+          let address: string | undefined;
+          if (record.metadata.withLocation && record.metadata.location) {
+            try {
+              address = await reverseGeocode(
+                record.metadata.location.latitude,
+                record.metadata.location.longitude
+              );
+            } catch (error) {
+              console.warn("Failed to reverse geocode:", error);
+            }
+          }
+          
+          // Upload image to Firebase
+          const imageUrl = await uploadToFirebase(record.image);
+          
+          // Prepare location object
+          const locationData = record.metadata.withLocation && record.metadata.location
+            ? {
+                latitude: record.metadata.location.latitude,
+                longitude: record.metadata.location.longitude,
+                address: address
+              }
+            : undefined;
+          
+          // Submit to main system
+          onSubmitClockLog(
+            record.image,
+            record.timestamp,
+            imageUrl,
+            locationData
+          );
+          
+          // Mark as uploaded in IndexedDB
+          const updateRequest = store.put({
+            ...record,
+            uploaded: true
+          });
+          
+          await new Promise<void>((resolve, reject) => {
+            updateRequest.onsuccess = () => resolve();
+            updateRequest.onerror = () => reject(updateRequest.error);
+          });
+          
+          console.log(`Successfully synced record ID: ${record.id}`);
+        } catch (error) {
+          console.error(`Failed to sync record ID: ${record.id}`, error);
+        }
+      }
+      
+      transaction.oncomplete = () => {
+        db.close();
+        checkPendingUploads();
+      };
+    };
+  };
 
   // Load face-api.js models on mount
   useEffect(() => {
@@ -52,31 +280,35 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   }, []);
 
   const handleLocationClick = async () => {
-  if (!shareLocation) {
-    try {
-      const position = await getCurrentPosition();
-      const { latitude, longitude } = position.coords;
-      
-      const address = await reverseGeocode(latitude, longitude);
-      
-      setLocation({
-        latitude,
-        longitude,
-        address
-      });
-      setShareLocation(true);
-      setLocationError(null);
-    } catch (error) {
-      console.error("Error getting location:", error);
-      setLocationError("Failed to get location. Please check permissions.");
+    if (!shareLocation) {
+      try {
+        const position = await getCurrentPosition();
+        const { latitude, longitude } = position.coords;
+        
+        // Only attempt reverse geocoding if online
+        let address: string | undefined;
+        if (navigator.onLine) {
+          address = await reverseGeocode(latitude, longitude);
+        }
+        
+        setLocation({
+          latitude,
+          longitude,
+          address
+        });
+        setShareLocation(true);
+        setLocationError(null);
+      } catch (error) {
+        console.error("Error getting location:", error);
+        setLocationError("Failed to get location. Please check permissions.");
+        setShareLocation(false);
+        setLocation(undefined);
+      }
+    } else {
+      setLocation(undefined);
       setShareLocation(false);
-      setLocation(undefined); // Changed from null to undefined
     }
-  } else {
-    setLocation(undefined); // Changed from null to undefined
-    setShareLocation(false);
-  }
-};
+  };
 
   const getCurrentPosition = (): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
@@ -97,20 +329,20 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   };
 
   const reverseGeocode = async (lat: number, lng: number) => {
-  try {
-    const apiKey = await getOpenCageKey(); // Get from Realtime DB
-    
-    const response = await fetch(
-      `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
-    );
-    
-    const data = await response.json();
-    return data.results[0]?.formatted || "Unknown location";
-  } catch (error) {
-    console.error("Geocoding failed:", error);
-    return "Location lookup failed";
-  }
-};
+    try {
+      const apiKey = await getOpenCageKey(); // Get from Realtime DB
+      
+      const response = await fetch(
+        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
+      );
+      
+      const data = await response.json();
+      return data.results[0]?.formatted || "Unknown location";
+    } catch (error) {
+      console.error("Geocoding failed:", error);
+      return "Location lookup failed";
+    }
+  };
 
   const takePhoto = () => {
     const canvas = canvasRef.current;
@@ -158,7 +390,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // ✅ Detect face using face-api.js
+  // Detect face using face-api.js
   const detectFace = async (canvas: HTMLCanvasElement): Promise<boolean> => {
     try {
       const detections = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions());
@@ -198,25 +430,51 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         hour12: true,
       });
 
-      const imageUrl = await uploadToFirebase(capturedImage);
-
-      const metadata = {
-        date: now.toISOString().split("T")[0],
-        time: now.toTimeString().split(" ")[0],
-        timestamp: now.getTime(),
-        formattedTime: formattedTimestamp,
-        withLocation: shareLocation,
-        location: shareLocation ? location : null
+      // Create attendance record
+      const attendanceData: PendingAttendance = {
+        image: capturedImage,
+        timestamp: formattedTimestamp,
+        metadata: {
+          date: now.toISOString().split("T")[0],
+          time: now.toTimeString().split(" ")[0],
+          timestampMs: now.getTime(),
+          formattedTime: formattedTimestamp,
+          withLocation: shareLocation,
+          location: shareLocation && location ? {
+            latitude: location.latitude,
+            longitude: location.longitude
+          } : undefined
+        },
+        uploaded: false,
+        createdAt: Date.now()
       };
 
-      onSubmitClockLog(capturedImage, formattedTimestamp, imageUrl, shareLocation ? location : undefined);
+      if (navigator.onLine) {
+        // Process online - upload immediately
+        const imageUrl = await uploadToFirebase(capturedImage);
+        
+        onSubmitClockLog(
+          capturedImage, 
+          formattedTimestamp, 
+          imageUrl, 
+          shareLocation ? location : undefined
+        );
+        
+        console.log("Time-in recorded and uploaded successfully");
+      } else {
+        // Process offline - save to IndexedDB
+        await saveToIndexedDB(attendanceData);
+        console.log("Time-in saved locally. Will upload when online.");
+        
+        // Show notification to user
+        alert("You are currently offline. Your attendance has been saved and will be uploaded when you're back online.");
+      }
 
       setCapturedImage(null);
       handleCameraClick();
-      console.log("Time-in recorded successfully:", metadata);
     } catch (error) {
-      alert("Failed to upload image. Please try again.");
-      console.error("Upload error:", error);
+      alert("Failed to process attendance. Please try again.");
+      console.error("Submit error:", error);
     } finally {
       setIsUploading(false);
     }
@@ -262,13 +520,25 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           <p>Coordinates: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</p>
           {location.address && <p>Address: {location.address}</p>}
         </div>
-      )}
+        )}
 
-      {locationError && (
-        <div className={styles.LocationError}>
-          <p>{locationError}</p>
-        </div>
-      )}
+        {locationError && (
+          <div className={styles.LocationError}>
+            <p>{locationError}</p>
+          </div>
+        )}
+
+        {!isOnline && (
+          <div className={styles.OfflineWarning}>
+            <p>You are currently offline. Your attendance will be saved locally and uploaded when you're back online.</p>
+          </div>
+        )}
+
+        {pendingUploads > 0 && (
+          <div className={styles.PendingUploads}>
+            <p>{pendingUploads} pending upload{pendingUploads !== 1 ? 's' : ''}</p>
+          </div>
+        )}
 
         <div className={styles.Button}>
           <div className={styles.Button_inner}>
