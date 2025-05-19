@@ -507,12 +507,25 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           </div>
         </div>
 
-        {capturedImage ? (
-          <img src={capturedImage} className={styles.User} alt="Captured" />
-        ) : (
-          <video ref={videoRef} className={styles.User} autoPlay muted playsInline />
-        )}
-        <canvas ref={canvasRef} style={{ display: "none" }} />
+        <div className={styles.CameraContainer}>
+          {capturedImage ? (
+            <img src={capturedImage} className={styles.User} alt="Captured" />
+          ) : (
+            <video 
+              ref={videoRef} 
+              className={styles.User} 
+              style={{ 
+                maxHeight: "40vh", // Limit height on mobile
+                objectFit: "contain",
+                margin: "0 auto"
+              }} 
+              autoPlay 
+              muted 
+              playsInline 
+            />
+          )}
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+        </div>
 
         {shareLocation && location && (
         <div className={styles.LocationInfo}>
