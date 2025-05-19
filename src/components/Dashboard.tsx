@@ -177,33 +177,35 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
 
-  const syncPendingData = async () => {
-    try {
-      const pendingItems = await offlineDB.getPendingSyncItems();
-      if (pendingItems.length === 0) return;
-
-      const batch = writeBatch(db);
-      const promises = [];
-
-      for (const item of pendingItems) {
-        try {
-          const { localId, status, ...firebaseData } = item;
-          
-          const docRef = doc(collection(db, "clockLog"));
-          batch.set(docRef, firebaseData);
-          
-          promises.push(offlineDB.removeSyncedItem(localId));
-        } catch (error) {
-          console.error(`Error syncing item ${item.localId}:`, error);
-        }
-      }
-
-      await batch.commit();
-      await Promise.all(promises);
-    } catch (error) {
-      console.error("Error syncing pending data:", error);
+ const syncPendingData = async () => {
+  try {
+    const pendingItems = await offlineDB.getPendingSyncItems();
+    if (pendingItems.length === 0) {
+      console.log("No offline records to sync.");
+      return;
     }
-  };
+
+    console.log(`Syncing ${pendingItems.length} offline records...`);
+
+    const promises = pendingItems.map(async (item) => {
+      const { localId, status, ...firebaseData } = item;
+
+      try {
+        await addDoc(collection(db, "clockLog"), firebaseData); // Save to Firestore
+        await offlineDB.removeSyncedItem(localId); // Remove from IndexedDB
+        console.log(`Synced and removed localId: ${localId}`);
+      } catch (error) {
+        console.error(`❌ Error syncing item ${localId}:`, error);
+      }
+    });
+
+    await Promise.all(promises);
+    console.log("✅ Sync complete.");
+  } catch (error) {
+    console.error("❌ Error during offline sync:", error);
+  }
+};
+
 
   useEffect(() => {
     const handleOnline = () => {
