@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import styles from "../css/History.module.css";
 import { useAuth } from "../context/AuthContext";
-import { collection, query, where, orderBy, getDocs, doc, writeBatch } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, doc, writeBatch, Timestamp, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -30,6 +30,41 @@ interface DailyLog {
   logIds: string[];
 }
 
+interface LogDetails {
+  imageUrl?: string;
+  location?: {
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    };
+    address?: string;
+    timestamp?: Timestamp;
+  };
+  timeString: string;
+  date: string;
+  key: string;
+  status: string;
+}
+
+interface ClockLogEntry {
+  id: string;
+  uid: string;
+  key: string;
+  time?: Timestamp;
+  timeString: string;
+  date: string;
+  imageUrl?: string;
+  status?: string;
+  location?: {
+    coordinates: {
+      latitude: number;
+      longitude: number;
+    };
+    address?: string;
+    timestamp?: Timestamp;
+  };
+}
+
 const History = () => {
   const { currentUser } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -37,6 +72,9 @@ const History = () => {
   const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("all"); // 'all' | 'week' | 'month'
+  const [selectedLog, setSelectedLog] = useState<LogDetails | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [allLogs, setAllLogs] = useState<ClockLogEntry[]>([]); // Add this to your state
 
 
   // Fetch all employees (admin only)
@@ -62,14 +100,21 @@ const History = () => {
     if (!selectedEmployee) return;
 
     const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        const q = query(
-          collection(db, "clockLog"),
-          where("uid", "==", selectedEmployee),
-          orderBy("time", "desc")
-        );
-        const snapshot = await getDocs(q);
+  setLoading(true);
+  try {
+    const q = query(
+      collection(db, "clockLog"),
+      where("uid", "==", selectedEmployee),
+      orderBy("time", "desc")
+    );
+    const snapshot = await getDocs(q);
+
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ClockLogEntry[];
+    
+    setAllLogs(logs);
 
         // Group logs by date
         const logsByDate: Record<string, DailyLog> = {};
@@ -254,77 +299,168 @@ const History = () => {
     ? `${employees.find(e => e.id === selectedEmployee)?.firstName} ${employees.find(e => e.id === selectedEmployee)?.surname}'s History`
     : "Employee History";
 
+  const showLogDetails = async (logId: string) => {
+  try {
+    const logRef = doc(db, "clockLog", logId);
+    const logSnap = await getDoc(logRef);
+    
+    if (logSnap.exists()) {
+      const logData = logSnap.data();
+      setSelectedLog({
+        imageUrl: logData.imageUrl,
+        location: logData.location,
+        timeString: logData.timeString,
+        date: logData.date,
+        key: logData.key,
+        status: logData.status
+      });
+      setShowModal(true);
+    }
+  } catch (error) {
+    console.error("Error fetching log details:", error);
+  }
+};
+
   return (
-    <div className={styles.History}>
-      <div className={styles.List_head}>
-        {currentUser?.admin ? (
-          <select
-            value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
-            className={styles.EmployeeDropdown}
-          >
-            {employees.map(employee => (
-              <option key={employee.id} value={employee.id}>
-                History of {employee.firstName} {employee.surname}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span>{selectedEmployeeName}</span>
-        )}
-      </div>
-
-      <div className={styles.List_inner}>
-        <div className={styles.List_buttons}>
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-          </select>
-          <button onClick={handleGenerateReport}>Generate Report</button>
-        </div>
-
-        {/* {loading ? (
-          <div>Loading...</div>
-        ) : ( */}
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Clock In</th>
-              {/* <th>Break Out</th>
-              <th>Break In</th> */}
-              <th>Clock Out</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dailyLogs.map(day => (
-              <tr key={day.date}>
-                <td>{day.date}</td>
-                <td>{day.clockIn || "-"}</td>
-                {/* <td>{day.breakOut || "-"}</td>
-                <td>{day.breakIn || "-"}</td> */}
-                <td>{day.clockOut || "-"}</td>
-                <td>
-                  <select
-                    value={day.status}
-                    onChange={(e) => handleStatusChange(day.date, e.target.value)}
-                    disabled={!currentUser?.admin}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* )} */}
-      </div>
+  <div className={styles.History}>
+    <div className={styles.List_head}>
+      {currentUser?.admin ? (
+        <select
+          value={selectedEmployee}
+          onChange={(e) => setSelectedEmployee(e.target.value)}
+          className={styles.EmployeeDropdown}
+        >
+          {employees.map(employee => (
+            <option key={employee.id} value={employee.id}>
+              History of {employee.firstName} {employee.surname}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span>{selectedEmployeeName}</span>
+      )}
     </div>
-  );
+
+    <div className={styles.List_inner}>
+      <div className={styles.List_buttons}>
+        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <option value="all">All</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+        </select>
+        <button onClick={handleGenerateReport}>Generate Report</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Clock In</th>
+            <th>Clock Out</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dailyLogs.map(day => (
+            <tr key={day.date}>
+              <td>{day.date}</td>
+              <td 
+  className={styles.ClickableCell}
+  onClick={() => {
+    if (day.clockIn) {
+      // Find the clockIn log ID
+      const clockInLogId = day.logIds.find(id => {
+        const log = allLogs.find(l => l.id === id);
+        return log?.key === "clockIn";
+      });
+      if (clockInLogId) showLogDetails(clockInLogId);
+    }
+  }}
+>
+  {day.clockIn || "-"}
+</td>
+<td 
+  className={styles.ClickableCell}
+  onClick={() => {
+    if (day.clockOut) {
+      // Find the clockOut log ID
+      const clockOutLogId = day.logIds.find(id => {
+        const log = allLogs.find(l => l.id === id);
+        return log?.key === "clockOut";
+      });
+      if (clockOutLogId) showLogDetails(clockOutLogId);
+    }
+  }}
+>
+  {day.clockOut || "-"}
+</td>
+              <td>
+                <select
+                  value={day.status}
+                  onChange={(e) => handleStatusChange(day.date, e.target.value)}
+                  disabled={!currentUser?.admin}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Modal for log details */}
+      {showModal && selectedLog && (
+        <div className={styles.ModalOverlay} onClick={() => setShowModal(false)}>
+          <div className={styles.ModalContent} onClick={e => e.stopPropagation()}>
+            <button 
+              className={styles.CloseButton} 
+              onClick={() => setShowModal(false)}
+            >
+              ×
+            </button>
+            
+            <h3>{selectedLog.key.toUpperCase()} Details</h3>
+            <p>Date: {selectedLog.date}</p>
+            <p>Time: {selectedLog.timeString}</p>
+            <p>Status: {selectedLog.status}</p>
+            
+            {selectedLog.imageUrl && (
+              <div className={styles.ImageContainer}>
+                <img 
+                  src={selectedLog.imageUrl} 
+                  alt="Verification photo" 
+                  className={styles.VerificationImage}
+                />
+              </div>
+            )}
+            
+            {selectedLog.location && (
+              <div className={styles.LocationInfo}>
+                <h4>Location Information</h4>
+                <p>Address: {selectedLog.location.address || "Not available"}</p>
+                <p>
+                  Coordinates: {selectedLog.location.coordinates.latitude.toFixed(6)}, 
+                  {selectedLog.location.coordinates.longitude.toFixed(6)}
+                </p>
+                <div className={styles.MapLink}>
+                  <a
+                    href={`https://www.google.com/maps?q=${selectedLog.location.coordinates.latitude},${selectedLog.location.coordinates.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View on Google Maps
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+);
 };
 
 export default History;
