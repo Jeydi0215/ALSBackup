@@ -66,41 +66,58 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
   // Initialize IndexedDB
   useEffect(() => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
-    request.onerror = (event) => {
-      console.error("IndexedDB error:", event.target.error);
-    };
-    
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
+    const initializeDatabase = () => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
       
-      // Create object store for pending attendance records
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { 
-          keyPath: "id", 
-          autoIncrement: true 
-        });
+      request.onerror = (event) => {
+        console.error("IndexedDB error:", event.target.error);
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
         
-        // Create indexes for easier querying
-        store.createIndex("uploaded", "uploaded", { unique: false });
-        store.createIndex("createdAt", "createdAt", { unique: false });
-      }
+        // Create object store for pending attendance records
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { 
+            keyPath: "id", 
+            autoIncrement: true 
+          });
+          
+          // Create indexes for easier querying
+          store.createIndex("uploaded", "uploaded", { unique: false });
+          store.createIndex("createdAt", "createdAt", { unique: false });
+        }
+      };
+      
+      request.onsuccess = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        console.log("IndexedDB initialized successfully");
+        db.close();
+        
+        // Check for pending uploads on initialization
+        checkPendingUploads();
+        
+        // If we're online when component mounts, try to sync immediately
+        if (navigator.onLine) {
+          setTimeout(() => {
+            syncPendingAttendance();
+          }, 1000);
+        }
+      };
     };
     
-    request.onsuccess = () => {
-      console.log("IndexedDB initialized successfully");
-      // Check for pending uploads on initialization
-      checkPendingUploads();
-    };
+    initializeDatabase();
   }, []);
 
-  // Network status listeners
+  // Network status listeners with improved sync behavior
   useEffect(() => {
     const handleOnline = () => {
-      setIsOnline(true);
       console.log("App is online. Checking for pending uploads...");
-      syncPendingAttendance();
+      setIsOnline(true);
+      // Add a slight delay to ensure network is stable before syncing
+      setTimeout(() => {
+        syncPendingAttendance();
+      }, 2000);
     };
     
     const handleOffline = () => {
@@ -108,9 +125,19 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       console.log("App is offline. Data will be stored locally.");
     };
     
+    // Set up event listeners
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     
+    // Check if we're online when component mounts and sync if needed
+    if (navigator.onLine) {
+      console.log("Component mounted while online. Checking for pending uploads...");
+      setTimeout(() => {
+        syncPendingAttendance();
+      }, 2000);
+    }
+    
+    // Clean up event listeners
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
@@ -179,91 +206,119 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       return;
     }
     
-    console.log("Syncing pending attendance records...");
+    console.log("Starting to sync pending attendance records...");
     
-    const request = indexedDB.open(DB_NAME);
-    
-    request.onsuccess = async (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      const transaction = db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const index = store.index("uploaded");
+    try {
+      const request = indexedDB.open(DB_NAME);
       
-      const pendingRecords = await new Promise<PendingAttendance[]>((resolve) => {
-        const request = index.openCursor(IDBKeyRange.only(false));
-        const records: PendingAttendance[] = [];
-        
-        request.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
-          
-          if (cursor) {
-            records.push(cursor.value);
-            cursor.continue();
-          } else {
-            resolve(records);
-          }
-        };
-      });
-      
-      console.log(`Found ${pendingRecords.length} pending records to sync`);
-      
-      for (const record of pendingRecords) {
-        try {
-          // Get address using reverse geocoding if location exists
-          let address: string | undefined;
-          if (record.metadata.withLocation && record.metadata.location) {
-            try {
-              address = await reverseGeocode(
-                record.metadata.location.latitude,
-                record.metadata.location.longitude
-              );
-            } catch (error) {
-              console.warn("Failed to reverse geocode:", error);
-            }
-          }
-          
-          // Upload image to Firebase
-          const imageUrl = await uploadToFirebase(record.image);
-          
-          // Prepare location object
-          const locationData = record.metadata.withLocation && record.metadata.location
-            ? {
-                latitude: record.metadata.location.latitude,
-                longitude: record.metadata.location.longitude,
-                address: address
-              }
-            : undefined;
-          
-          // Submit to main system
-          onSubmitClockLog(
-            record.image,
-            record.timestamp,
-            imageUrl,
-            locationData
-          );
-          
-          // Mark as uploaded in IndexedDB
-          const updateRequest = store.put({
-            ...record,
-            uploaded: true
-          });
-          
-          await new Promise<void>((resolve, reject) => {
-            updateRequest.onsuccess = () => resolve();
-            updateRequest.onerror = () => reject(updateRequest.error);
-          });
-          
-          console.log(`Successfully synced record ID: ${record.id}`);
-        } catch (error) {
-          console.error(`Failed to sync record ID: ${record.id}`, error);
-        }
-      }
-      
-      transaction.oncomplete = () => {
-        db.close();
-        checkPendingUploads();
+      request.onerror = (event) => {
+        console.error("Error opening database for sync:", (event.target as IDBOpenDBRequest).error);
       };
-    };
+      
+      request.onsuccess = async (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const index = store.index("uploaded");
+        
+        // Get all pending records
+        const getPendingRecords = (): Promise<PendingAttendance[]> => {
+          return new Promise((resolve) => {
+            const records: PendingAttendance[] = [];
+            const cursorRequest = index.openCursor(IDBKeyRange.only(false));
+            
+            cursorRequest.onsuccess = (event) => {
+              const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
+              
+              if (cursor) {
+                console.log("Found pending record:", cursor.value);
+                records.push(cursor.value);
+                cursor.continue();
+              } else {
+                resolve(records);
+              }
+            };
+            
+            cursorRequest.onerror = () => {
+              console.error("Error getting pending records");
+              resolve([]);
+            };
+          });
+        };
+        
+        const pendingRecords = await getPendingRecords();
+        console.log(`Found ${pendingRecords.length} pending records to sync`);
+        
+        if (pendingRecords.length === 0) {
+          db.close();
+          return;
+        }
+        
+        // Process each pending record
+        for (const record of pendingRecords) {
+          try {
+            console.log(`Processing record ID: ${record.id}`);
+            
+            // Get address using reverse geocoding if location exists
+            let address: string | undefined;
+            if (record.metadata.withLocation && record.metadata.location) {
+              try {
+                address = await reverseGeocode(
+                  record.metadata.location.latitude,
+                  record.metadata.location.longitude
+                );
+              } catch (error) {
+                console.warn("Failed to reverse geocode:", error);
+              }
+            }
+            
+            // Upload image to Firebase
+            console.log("Uploading image to Firebase...");
+            const imageUrl = await uploadToFirebase(record.image);
+            console.log("Image uploaded, URL:", imageUrl);
+            
+            // Prepare location object
+            const locationData = record.metadata.withLocation && record.metadata.location
+              ? {
+                  latitude: record.metadata.location.latitude,
+                  longitude: record.metadata.location.longitude,
+                  address: address
+                }
+              : undefined;
+            
+            // Submit to main system
+            console.log("Submitting to main system via onSubmitClockLog...");
+            onSubmitClockLog(
+              record.image,
+              record.timestamp,
+              imageUrl,
+              locationData
+            );
+            
+            // Mark as uploaded in IndexedDB
+            const updateTransaction = db.transaction([STORE_NAME], "readwrite");
+            const updateStore = updateTransaction.objectStore(STORE_NAME);
+            
+            updateStore.put({
+              ...record,
+              uploaded: true
+            });
+            
+            console.log(`Successfully synced and marked record ID: ${record.id} as uploaded`);
+          } catch (error) {
+            console.error(`Failed to sync record ID: ${record.id}`, error);
+          }
+        }
+        
+        transaction.oncomplete = () => {
+          db.close();
+          checkPendingUploads();
+          console.log("Sync complete");
+        };
+      };
+    } catch (error) {
+      console.error("Error in syncPendingAttendance:", error);
+    }
   };
 
   // Load face-api.js models on mount
