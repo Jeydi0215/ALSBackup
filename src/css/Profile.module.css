@@ -228,6 +228,17 @@
   display: none;
 }
 
+.AdminBadge {
+  background-color: #4a00e0;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  margin: 4px 0;
+  display: inline-block;
+}
+
 @media (min-width: 768px) and (max-width: 1024px) {
   .Profile_up img{
     display: block;

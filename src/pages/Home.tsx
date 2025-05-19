@@ -12,7 +12,7 @@ import History from "../components/History";
 import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
-import EmployeeList from '../components/EmployeeList'
+// import EmployeeList from '../components/EmployeeList'
 import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc, GeoPoint } from "firebase/firestore";
 
 
@@ -47,6 +47,12 @@ const Home = ({
   pageNumber,
   handlePageClick,
 }: Props) => {
+
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const handlePageAndEmployeeClick = (pageNum: number, employeeId?: string) => {
+    setSelectedEmployeeId(employeeId || null);
+    handlePageClick(pageNum);
+  };
   const [showCamera, setShowCamera] = useState(false);
   const [currentKey, setCurrentKey] = useState<string>("");
   const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
@@ -169,13 +175,13 @@ const Home = ({
       case 2:
         return <History />;
       case 3:
-        return <Profile />;
+        return <Profile userId={selectedEmployeeId} />;
       case 4:
         return <About />;
       case 5:
-          return <Monitoring handlePageClick={handlePageClick}/>;
-      case 6:
-          return <EmployeeList />;
+          return <Monitoring handlePageClick={handlePageAndEmployeeClick}/>;
+      // case 6:
+      //     return <EmployeeList />;
       default:
         return <History />;
     }

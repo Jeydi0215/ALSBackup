@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import styles from "../css/Dashboard.module.css";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
+// import Filter from "../assets/sort.png";
 import { useAuth } from "../context/AuthContext";
 import {
   doc,
@@ -351,95 +352,104 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser) return;
+  if (!currentUser) return;
 
-    let q;
-
-    if (currentUser.admin) {
-      q = query(
+  const q = currentUser.admin
+    ? query(
         collection(db, "clockLog"),
         where("status", "==", "pending"),
         orderBy("time", "desc")
-      );
-    } else {
-      q = query(
+      )
+    : query(
         collection(db, "clockLog"),
         where("uid", "==", currentUser.uid),
         orderBy("time", "desc")
       );
-    }
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const logs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClockLogEntry[];
+  const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const logs = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ClockLogEntry[];
 
-      setClockLog(logs);
+    setClockLog(logs);
 
-      if (!currentUser.admin) {
-        const today = new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "2-digit",
-          year: "numeric"
-        });
+    if (!currentUser.admin) {
+      const today = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric"
+      });
 
-        const newTimestamps = {
-          clockIn: "-",
-          breakIn: "-",
-          breakOut: "-",
-          clockOut: "-"
-        };
+      const newTimestamps = {
+        clockIn: "-",
+        breakIn: "-",
+        breakOut: "-",
+        clockOut: "-"
+      };
 
-        const todayLogs = logs.filter(log => log.date === today);
-        
-        todayLogs.forEach(log => {
-          if (log.key && newTimestamps[log.key] === "-") {
-            newTimestamps[log.key] = log.timeString;
-          }
-        });
+      const todayLogs = logs.filter(log => log.date === today);
 
-        setTimestamps(newTimestamps);
+      todayLogs.forEach(log => {
+        let timeStr = log.timeString;
 
-        const userLogsToday = todayLogs.filter(log => log.uid === currentUser.uid);
-        const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
-        const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
-        const hasAutoClockOut = userLogsToday.some(
-          log => log.key === "clockOut" && log.timeString === "5:00 PM"
-        );
+        // Adjust clock-in before 8:00 AM
+        if (log.key === "clockIn" && parseTimeToMinutes(timeStr) < 8 * 60) {
+          timeStr = "8:00 AM (auto)";
+        }
 
-        const now = new Date();
-        const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
+        // Adjust clock-out between 5:00 PM and 8:00 PM
+        if (
+          log.key === "clockOut" &&
+          parseTimeToMinutes(timeStr) >= 17 * 60 &&
+          parseTimeToMinutes(timeStr) < 20 * 60
+        ) {
+          timeStr = "5:00 PM (auto)";
+        }
 
-        if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
-          setIsProcessing(true);
-          try {
-            await addDoc(collection(db, "clockLog"), {
-              uid: currentUser.uid,
-              key: "clockOut",
-              time: null,
-              timeString: "NULL (Missed 8PM)",
-              date: today,
-              status: "pending",
-              imageUrl: "",
-              userFirstName: userData?.firstName,
-              userSurname: userData?.surname,
-              isAuto: true,
-              notes: "Employee failed to clock out by 8:00 PM cutoff"
-            });
-          } catch (err) {
-            console.error("Auto clock-out failed:", err);
-          } finally {
-            setIsProcessing(false);
-          }
+        if (log.key && newTimestamps[log.key] === "-") {
+          newTimestamps[log.key] = timeStr;
+        }
+      });
+
+      setTimestamps(newTimestamps);
+
+      // Handle missed 8PM clock-out
+      const hasClockIn = todayLogs.some(log => log.key === "clockIn");
+      const hasClockOut = todayLogs.some(log => log.key === "clockOut");
+      const now = new Date();
+      const isAfter8PM = now.getHours() >= 20;
+
+      if (hasClockIn && !hasClockOut && isAfter8PM && !isProcessing) {
+        setIsProcessing(true);
+        try {
+          await addDoc(collection(db, "clockLog"), {
+            uid: currentUser.uid,
+            key: "clockOut",
+            time: null,
+            timeString: "NULL (Missed 8PM)",
+            date: today,
+            status: "pending",
+            imageUrl: "",
+            location: "",
+            userFirstName: userData?.firstName,
+            userSurname: userData?.surname,
+            isAuto: true,
+            notes: "Missed 8:00 PM clock-out cutoff"
+          });
+        } catch (err) {
+          console.error("Auto clock-out failed:", err);
+        } finally {
+          setIsProcessing(false);
         }
       }
-    }, (error) => {
-      console.error("Error fetching logs:", error);
-    });
+    }
+  }, (error) => {
+    console.error("Error fetching logs:", error);
+  });
 
-    return () => unsubscribe();
-  }, [currentUser, isProcessing, userData]);
+  return () => unsubscribe();
+}, [currentUser, isProcessing, userData]); 
 
   useEffect(() => {
     const updateClock = () => {
@@ -730,69 +740,109 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           <div className={styles.WeeklyTable}>
             <div className={styles.Clock_day}>
               <div className={styles.Clock_morning}>
-                <h2>Morning:</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      {currentUser?.admin && <th>Employee</th>}
-                      <th>Date</th>
-                      <th>Clock In</th>
-                      <th>Break In</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyReportData.map((entry, index) => {
-                      const employeeName = entry.employeeName || "Unknown User";
+              <h2>Morning:</h2>
+              <table>
+                <thead>
+                  <tr>
+                    {currentUser?.admin && <th>Employee</th>}
+                    <th>Date</th>
+                    <th>Clock In</th>
+                    <th>Break In</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyReportData.map((entry, index) => {
+                    const employeeName = entry.employeeName || "Unknown User";
 
-                      return (
-                        <tr key={index}>
-                          {currentUser?.admin && <td>{employeeName}</td>}
-                          <td>{entry.date}</td>
-                          <td>{entry.clockIn || "-"}</td>
-                          <td>{entry.breakIn || "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                    return (
+                      <tr key={index}>
+                        {currentUser?.admin && <td>{employeeName}</td>}
+                        <td>{entry.date}</td>
+                        <td>{entry.clockIn || "-"}</td>
+                        <td>{entry.breakIn || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
               </div>
 
               <div className={styles.Clock_afternoon}>
                 <h2>Afternoon:</h2>
                 <table>
-                  <thead>
-                    <tr>
-                      {currentUser?.admin && <th>Employee</th>}
-                      <th>Date</th>
-                      <th>Break Out</th>
-                      <th>Clock Out</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyReportData.map((entry, index) => {
-                      const employeeName = entry.employeeName || "Unknown User";
-                      const statusText = entry.status || "-";
-                      const statusStyle = {
-                        color:
-                          entry.status === 'approved' ? 'green' :
-                          entry.status === 'rejected' ? 'red' :
-                          entry.status === 'pending'  ? 'orange' :
-                          'inherit'
-                      };
+                <thead>
+                  <tr>
+                    {currentUser?.admin && <th>Employee</th>}
+                    <th>Date</th>
+                    <th>Break Out</th>
+                    <th>Clock Out</th>
+                    {/* <th>Status</th>
+                    {currentUser?.admin && <th>Actions</th>} */}
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyReportData.map((entry, index) => {
+                    const employeeName = entry.employeeName || "Unknown User";
+                    const statusText = entry.status || "-";
+                    const statusStyle = {
+                      color:
+                        entry.status === 'approved' ? 'green' :
+                        entry.status === 'rejected' ? 'red' :
+                        entry.status === 'pending'  ? 'orange' :
+                        'inherit'
+                    };
+                    // sample comment
 
-                      return (
-                        <tr key={index}>
-                          {currentUser?.admin && <td>{employeeName}</td>}
-                          <td>{entry.date}</td>
-                          <td>{entry.breakOut || "-"}</td>
-                          <td>{entry.clockOut || "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
+                    return (
+                      <tr key={index}>
+                        {currentUser?.admin && <td>{employeeName}</td>}
+                        <td>{entry.date}</td>
+                        <td>{entry.breakOut || "-"}</td>
+                        <td>{entry.clockOut || "-"}</td>
+                        {/* <td style={statusStyle}>{statusText}</td>
+                        {currentUser?.admin && (
+                          <td>
+                            {entry.status === "pending" && entry.isComplete ? (
+                              <>
+                                <button
+                                  style={{ marginRight: 5 }}
+                                  onClick={() => {
+                                    if (window.confirm(`Approve all time entries for ${entry.date}?`)) {
+                                      handleApprove(entry.logIds);
+                                    }
+                                  }}
+                                  className={styles.ApproveButton}
+                                  disabled={isProcessing}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Reject all time entries for ${entry.date}?`)) {
+                                      handleReject(entry.logIds);
+                                    }
+                                  }}
+                                  className={styles.RejectButton}
+                                  disabled={isProcessing}
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </td>
+                        )} */}
+                      </tr>
+                    );
+                  })}
+                </tbody>
                 </table>
               </div>
             </div>
+
+            
+
 
             <div style={{
               textAlign: 'right',

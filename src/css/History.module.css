@@ -5,7 +5,7 @@
 
 .History {
   width: 100%;
-  min-height: 90dvh;
+  min-height: 100dvh;
   display: flex;
   gap: 1rem;
   padding: 1rem 1rem 1rem 0;
@@ -222,6 +222,83 @@
 }
 .History td{
   background-color: #fff;
+}
+
+/* Modal styles */
+.ModalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.ModalContent {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.CloseButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.ImageContainer {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.VerificationImage {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.LocationInfo {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.MapLink {
+  margin-top: 0.5rem;
+}
+
+.MapLink a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.MapLink a:hover {
+  text-decoration: underline;
+}
+
+/* Make table cells clickable */
+.ClickableCell {
+  cursor: pointer;
+  color: #0066cc;
+  text-decoration: underline;
+}
+
+.ClickableCell:hover {
+  color: #004499;
 }
 @media (min-width: 768px) and (max-width: 1024px) {
   table td{

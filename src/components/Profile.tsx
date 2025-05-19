@@ -36,8 +36,12 @@ type ProfileData = {
   createdAt: Date | { seconds: number; nanoseconds: number }; // Firestore timestamp
 };
 
+type ProfileProps = {
+  userId?: string; // Add this prop type
+};
 
-const Profile = () => {
+const Profile = ({ userId }: ProfileProps) => {
+  const [isViewingOtherProfile, setIsViewingOtherProfile] = useState(false);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,19 +61,39 @@ const Profile = () => {
   const { currentUser } = useAuth();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
-
   useEffect(() => {
     const fetchProfile = async () => {
-      if (currentUser) {
-        const docRef = doc(db, "users", currentUser.uid);
+      try {
+        const targetUserId = userId || currentUser?.uid;
+        if (!targetUserId) return;
+
+        setIsViewingOtherProfile(!!userId && userId !== currentUser?.uid);
+        
+        const docRef = doc(db, "users", targetUserId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setProfileData(docSnap.data() as ProfileData);
         }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
       }
     };
     fetchProfile();
-  }, [currentUser]);
+  }, [currentUser, userId]);
+
+
+  // useEffect(() => {
+  //   const fetchProfile = async () => {
+  //     if (currentUser) {
+  //       const docRef = doc(db, "users", currentUser.uid);
+  //       const docSnap = await getDoc(docRef);
+  //       if (docSnap.exists()) {
+  //         setProfileData(docSnap.data() as ProfileData);
+  //       }
+  //     }
+  //   };
+  //   fetchProfile();
+  // }, [currentUser]);
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -129,7 +153,12 @@ const Profile = () => {
     <div className={styles.Profile}>
       <span className={styles.Profile_up}>
         <span  className={styles.Profile_title}>Profile</span>
-        <img src={Logout} />
+        {profileData?.admin || isViewingOtherProfile && (
+    <div className={styles.AdminBadge}>
+      <span>ADMIN VIEW</span>
+    </div>
+  )}
+        <img src={Logout} alt="logout" />
       </span>
       <div className={styles.Profile_inner}>
         <div className={styles.Profile_top}>
@@ -158,23 +187,27 @@ const Profile = () => {
 
           <div className={styles.Personal_details}>
             <div className={styles.Detail_head}>
-              <span className={styles.Personal}>Personal Details</span>
-              {!isEditing ? (
-                <button className={styles.Edit} onClick={() => setIsEditing(true)}>
-                  <img src={Edit} alt="Edit icon" />
-                  <span>Edit</span>
-                </button>
-              ) : (
-                <div>
-                  <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
-                    <span>Save</span>
-                  </button>
-                  <button className={styles.Cancel} onClick={() => setIsEditing(false)}>
-                    <span>Cancel</span>
-                  </button>
-                </div>
-              )}
-            </div>
+    <span className={styles.Personal}>Personal Details</span>
+    {!isViewingOtherProfile && (
+      <>
+        {!isEditing ? (
+          <button className={styles.Edit} onClick={() => setIsEditing(true)}>
+            <img src={Edit} alt="Edit icon" />
+            <span>Edit</span>
+          </button>
+        ) : (
+          <div>
+            <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
+              <span>Save</span>
+            </button>
+            <button className={styles.Cancel} onClick={() => setIsEditing(false)}>
+              <span>Cancel</span>
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </div>
 
             <div className={styles.Details_container}>
               <div className={styles.Detail}>
@@ -300,9 +333,9 @@ const Profile = () => {
             </button>
           </div>
 
-          {profileToggle === 1 && <LastWeekLog />}
+          {profileToggle === 1 && <LastWeekLog userId={userId} />}
           {profileToggle === 2 && <Scheduled />}
-          {profileToggle === 3 && <Summary />}
+          {profileToggle === 3 && <Summary userId={userId} />}
         </div>
       </div>
     </div>
