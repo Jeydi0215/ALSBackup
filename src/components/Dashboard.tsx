@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react"; 
 import styles from "../css/Dashboard.module.css";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
@@ -18,6 +18,7 @@ import {
 import { db } from "../firebase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import ClockModal from "./ClockModal"; 
 
 interface UserData {
   firstName: string;
@@ -161,8 +162,9 @@ class OfflineDB {
 }
 
 const offlineDB = new OfflineDB('AttendanceDB');
-
+// default
 const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
+  const actionKeyRef = useRef<string>("clockIn");
   const { currentUser } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [clockLog, setClockLog] = useState<ClockLogEntry[]>([]);
@@ -502,22 +504,19 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return `${hours > 0 ? `${hours}h ` : ""}${minutes}m${suffix}`;
   };
 
-  const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
-    if (!isButtonEnabled(key)) {
-      alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
-      return;
-    }
+ const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
+  e.preventDefault();
+  e.stopPropagation();
 
-    e.preventDefault();
-    e.stopPropagation();
+  if (!isButtonEnabled(key)) {
+    alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
+    return;
+  }
 
-    if (!isOnline) {
-      handleCameraClick(key, true);
-      return;
-    }
+  actionKeyRef.current = key; // store the current action (clockIn, breakIn, etc.)
 
-    handleCameraClick(key, false);
-  };
+  handleCameraClick(key, !isOnline); // true if offline
+};
 
   const getWeeklyReportData = (): WeeklyReportDay[] => {
     const now = new Date();
@@ -648,6 +647,45 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return false;
     }
   };
+const handleClockLogSubmit = async (
+  image: string,
+  timestamp: string,
+  imageUrl?: string,
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  }
+) => {
+  try {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric"
+    });
+
+    const data = {
+      uid: currentUser?.uid,
+      key: actionKeyRef.current, // We'll explain this below
+      time: Timestamp.now(),
+      timeString: timestamp,
+      date: formattedDate,
+      status: "pending",
+      imageUrl: imageUrl || "",
+      userFirstName: userData?.firstName || "",
+      userSurname: userData?.surname || "",
+      isAuto: false,
+      notes: "",
+      location,
+    };
+
+    await addDoc(collection(db, "clockLog"), data);
+    console.log("Clock log saved to Firestore");
+  } catch (error) {
+    console.error("Error saving clock log to Firestore:", error);
+  }
+};
 
   const weeklyReportData = getWeeklyReportData();
 

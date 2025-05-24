@@ -157,7 +157,7 @@ const EmployeeTracker = () => {
   if (!currentUser) return <div>Please sign in to view this page</div>;
 
   return (
-    <div className={styles.EmployeeTracker}>
+    <div className={styles.EmployeeTracker}>  
       <table>
         <thead>
           <tr>
