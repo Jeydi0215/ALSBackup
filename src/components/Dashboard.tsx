@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"; 
+import { useState, useEffect, useRef } from "react";
 import styles from "../css/Dashboard.module.css";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
@@ -162,7 +162,7 @@ class OfflineDB {
 }
 
 const offlineDB = new OfflineDB('AttendanceDB');
-// default
+
 const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const actionKeyRef = useRef<string>("clockIn");
   const { currentUser } = useAuth();
@@ -178,42 +178,107 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
+  
+  // New state for sync functionality
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [pendingCount, setPendingCount] = useState(0);
 
- const syncPendingData = async () => {
-  try {
-    const pendingItems = await offlineDB.getPendingSyncItems();
-    if (pendingItems.length === 0) {
-      console.log("No offline records to sync.");
+  // Function to check pending items count
+  const checkPendingItems = async () => {
+    try {
+      const pendingItems = await offlineDB.getPendingSyncItems();
+      setPendingCount(pendingItems.length);
+    } catch (error) {
+      console.error("Error checking pending items:", error);
+      setPendingCount(0);
+    }
+  };
+
+  // Enhanced syncPendingData function with better status handling
+  const syncPendingData = async (isManualSync = false) => {
+    try {
+      if (isManualSync) {
+        setSyncStatus('syncing');
+      }
+
+      const pendingItems = await offlineDB.getPendingSyncItems();
+      
+      if (pendingItems.length === 0) {
+        console.log("No offline records to sync.");
+        if (isManualSync) {
+          setSyncStatus('success');
+          setTimeout(() => setSyncStatus('idle'), 2000);
+        }
+        setPendingCount(0);
+        return;
+      }
+
+      console.log(`Syncing ${pendingItems.length} offline records...`);
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      const promises = pendingItems.map(async (item) => {
+        const { localId, status, ...firebaseData } = item;
+
+        try {
+          await addDoc(collection(db, "clockLog"), firebaseData);
+          await offlineDB.removeSyncedItem(localId);
+          console.log(`✅ Synced and removed localId: ${localId}`);
+          successCount++;
+        } catch (error) {
+          console.error(`❌ Error syncing item ${localId}:`, error);
+          errorCount++;
+        }
+      });
+
+      await Promise.all(promises);
+      
+      console.log(`✅ Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      
+      if (isManualSync) {
+        if (errorCount === 0) {
+          setSyncStatus('success');
+          setTimeout(() => setSyncStatus('idle'), 3000);
+        } else {
+          setSyncStatus('error');
+          setTimeout(() => setSyncStatus('idle'), 3000);
+        }
+      }
+      
+      // Update pending count
+      setPendingCount(errorCount);
+      
+    } catch (error) {
+      console.error("❌ Error during offline sync:", error);
+      if (isManualSync) {
+        setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      }
+    }
+  };
+
+  // Manual sync button handler
+  const handleManualSync = async () => {
+    if (!isOnline) {
+      alert("You are currently offline. Please check your internet connection and try again.");
       return;
     }
+    
+    if (syncStatus === 'syncing') {
+      return; // Prevent multiple sync attempts
+    }
+    
+    await syncPendingData(true);
+  };
 
-    console.log(`Syncing ${pendingItems.length} offline records...`);
-
-    const promises = pendingItems.map(async (item) => {
-      const { localId, status, ...firebaseData } = item;
-
-      try {
-        await addDoc(collection(db, "clockLog"), firebaseData); // Save to Firestore
-        await offlineDB.removeSyncedItem(localId); // Remove from IndexedDB
-        console.log(`Synced and removed localId: ${localId}`);
-      } catch (error) {
-        console.error(`❌ Error syncing item ${localId}:`, error);
-      }
-    });
-
-    await Promise.all(promises);
-    console.log("✅ Sync complete.");
-  } catch (error) {
-    console.error("❌ Error during offline sync:", error);
-  }
-};
-
-
+  // Updated useEffect for online/offline handling
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      syncPendingData();
+      syncPendingData(); // Auto-sync when coming online
     };
+    
     const handleOffline = () => {
       setIsOnline(false);
       setShowOfflineAlert(true);
@@ -222,11 +287,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Initial sync check and pending count
     syncPendingData();
+    checkPendingItems();
+
+    // Check pending items periodically
+    const intervalId = setInterval(checkPendingItems, 5000); // Check every 5 seconds
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -504,19 +575,18 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return `${hours > 0 ? `${hours}h ` : ""}${minutes}m${suffix}`;
   };
 
- const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
-  e.preventDefault();
-  e.stopPropagation();
+  const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-  if (!isButtonEnabled(key)) {
-    alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
-    return;
-  }
+    if (!isButtonEnabled(key)) {
+      alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
+      return;
+    }
 
-  actionKeyRef.current = key; // store the current action (clockIn, breakIn, etc.)
-
-  handleCameraClick(key, !isOnline); // true if offline
-};
+    actionKeyRef.current = key;
+    handleCameraClick(key, !isOnline);
+  };
 
   const getWeeklyReportData = (): WeeklyReportDay[] => {
     const now = new Date();
@@ -647,56 +717,206 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return false;
     }
   };
-const handleClockLogSubmit = async (
-  image: string,
-  timestamp: string,
-  imageUrl?: string,
-  location?: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  }
-) => {
-  try {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-US", {
-      month: "long",
-      day: "2-digit",
-      year: "numeric"
-    });
 
-    const data = {
-      uid: currentUser?.uid,
-      key: actionKeyRef.current, // We'll explain this below
-      time: Timestamp.now(),
-      timeString: timestamp,
-      date: formattedDate,
-      status: "pending",
-      imageUrl: imageUrl || "",
-      userFirstName: userData?.firstName || "",
-      userSurname: userData?.surname || "",
-      isAuto: false,
-      notes: "",
-      location,
-    };
+  const handleClockLogSubmit = async (
+    image: string,
+    timestamp: string,
+    imageUrl?: string,
+    location?: {
+      latitude: number;
+      longitude: number;
+      address?: string;
+    }
+  ) => {
+    try {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric"
+      });
 
-    await addDoc(collection(db, "clockLog"), data);
-    console.log("Clock log saved to Firestore");
-  } catch (error) {
-    console.error("Error saving clock log to Firestore:", error);
-  }
-};
+      const data = {
+        uid: currentUser?.uid,
+        key: actionKeyRef.current,
+        time: Timestamp.now(),
+        timeString: timestamp,
+        date: formattedDate,
+        status: "pending",
+        imageUrl: imageUrl || "",
+        userFirstName: userData?.firstName || "",
+        userSurname: userData?.surname || "",
+        isAuto: false,
+        notes: "",
+        location,
+      };
+
+      // Check if online or offline
+      if (isOnline) {
+        // Save directly to Firestore when online
+        await addDoc(collection(db, "clockLog"), data);
+        console.log("Clock log saved to Firestore");
+      } else {
+        // Save to IndexedDB when offline
+        await offlineDB.saveAttendance(data);
+        console.log("Clock log saved offline - will sync when online");
+        
+        // Update pending count immediately
+        checkPendingItems();
+        
+        // Optional: Show user feedback
+        alert("You're offline. Your clock entry has been saved and will sync when you're back online.");
+      }
+    } catch (error) {
+      console.error("Error saving clock log:", error);
+      
+      // Fallback: if online save fails, save offline
+      if (isOnline) {
+        try {
+          const now = new Date();
+          const formattedDate = now.toLocaleDateString("en-US", {
+            month: "long",
+            day: "2-digit",
+            year: "numeric"
+          });
+
+          const data = {
+            uid: currentUser?.uid,
+            key: actionKeyRef.current,
+            time: Timestamp.now(),
+            timeString: timestamp,
+            date: formattedDate,
+            status: "pending",
+            imageUrl: imageUrl || "",
+            userFirstName: userData?.firstName || "",
+            userSurname: userData?.surname || "",
+            isAuto: false,
+            notes: "",
+            location,
+          };
+          
+          await offlineDB.saveAttendance(data);
+          console.log("Firestore failed, saved offline as fallback");
+          checkPendingItems();
+          alert("Network error occurred. Your entry has been saved offline and will sync when connection is restored.");
+        } catch (offlineError) {
+          console.error("Both Firestore and offline save failed:", offlineError);
+          alert("Failed to save your clock entry. Please try again.");
+        }
+      }
+    }
+  };
 
   const weeklyReportData = getWeeklyReportData();
 
   return (
     <div className={styles.Dashboard}>
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+      
       <h1 className={styles.Dash_title}>Dashboard</h1>
 
       {showOfflineAlert && !isOnline && (
         <div className={styles.OfflineAlert}>
           <p>You are currently offline. Your attendance will be saved locally and synced when you're back online.</p>
           <button onClick={() => setShowOfflineAlert(false)}>Dismiss</button>
+        </div>
+      )}
+
+      {/* Sync Button Section */}
+      {(pendingCount > 0 || !isOnline) && (
+        <div className={styles.SyncSection} style={{
+          background: '#f8f9fa',
+          border: '1px solid #dee2e6',
+          borderRadius: '8px',
+          padding: '15px',
+          margin: '10px 0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              backgroundColor: isOnline ? '#28a745' : '#dc3545'
+            }}></div>
+            <span style={{ fontWeight: '600', color: '#495057' }}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+            {pendingCount > 0 && (
+              <span style={{
+                background: '#ffc107',
+                color: '#212529',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                {pendingCount} pending sync
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {syncStatus === 'success' && (
+              <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
+                ✅ Sync completed successfully!
+              </span>
+            )}
+            {syncStatus === 'error' && (
+              <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
+                ❌ Sync failed. Please try again.
+              </span>
+            )}
+            
+            <button
+              onClick={handleManualSync}
+              disabled={!isOnline || syncStatus === 'syncing'}
+              style={{
+                background: syncStatus === 'syncing' ? '#6c757d' : 
+                           syncStatus === 'success' ? '#28a745' : 
+                           isOnline ? '#007bff' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: syncStatus === 'syncing' || !isOnline ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                opacity: syncStatus === 'syncing' || !isOnline ? 0.6 : 1
+              }}
+            >
+              {syncStatus === 'syncing' ? (
+                <>
+                  <span style={{
+                    width: '12px',
+                    height: '12px',
+                    border: '2px solid transparent',
+                    borderTop: '2px solid white',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }}></span>
+                  Syncing...
+                </>
+              ) : syncStatus === 'success' ? (
+                <>✅ Synced</>
+              ) : (
+                <>🔄 Sync Now</>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -749,6 +969,7 @@ const handleClockLogSubmit = async (
           </div>
         </div>
       )}
+      
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
           <span className={styles.ReportText}>
@@ -804,6 +1025,9 @@ const handleClockLogSubmit = async (
                       <th>Date</th>
                       <th>Break Out</th>
                       <th>Clock Out</th>
+                      <th>Working Hours</th>
+                      <th>Status</th>
+                      {currentUser?.admin && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -823,7 +1047,52 @@ const handleClockLogSubmit = async (
                           {currentUser?.admin && <td>{employeeName}</td>}
                           <td>{entry.date}</td>
                           <td>{entry.breakOut || "-"}</td>
-                          <td>{entry.clockOut || "-"}</td>
+                          <td>{entry.clockOut || 
+                            (new Date().getHours() > 17 || 
+                              (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
+                              ? "5:00 PM (auto)" 
+                              : "-")
+                          }</td>
+                          <td>{entry.workingHours}</td>
+                          <td style={statusStyle}>{statusText}</td>
+                          {currentUser?.admin && (
+                            <td>
+                              {entry.status === 'pending' && (
+                                <div style={{ display: 'flex', gap: '5px' }}>
+                                  <button
+                                    onClick={() => handleApprove(entry.logIds)}
+                                    disabled={isProcessing}
+                                    style={{
+                                      background: '#28a745',
+                                      color: 'white',
+                                      border: 'none',
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px'
+                                    }}
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(entry.logIds)}
+                                    disabled={isProcessing}
+                                    style={{
+                                      background: '#dc3545',
+                                      color: 'white',
+                                      border: 'none',
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px'
+                                    }}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -851,6 +1120,13 @@ const handleClockLogSubmit = async (
           </p>
         )}
       </div>
+
+      {/* ClockModal - Add this if you're using it in Dashboard */}
+      <ClockModal
+        showCamera={false} // You'll need to manage this state
+        handleCameraClick={() => {}} // You'll need to implement this
+        onSubmitClockLog={handleClockLogSubmit}
+      />
     </div>
   );
 };
