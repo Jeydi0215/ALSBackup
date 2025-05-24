@@ -787,7 +787,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {!isOnline && (
           <div className={styles.OfflineWarning}>
-            <p>You are currently offline. Your attendance will be saved locally and uploaded when you're back online.</p>
+        
           </div>
         )}
 

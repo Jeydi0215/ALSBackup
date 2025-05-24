@@ -827,9 +827,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         </div>
       )}
 
-      {/* Sync Button Section */}
-      {(pendingCount > 0 || !isOnline) && (
-        <div className={styles.SyncSection} style={{
+      {/* Sync Button Section - Always visible */}
+      <div className={styles.SyncSection} style={{
           background: '#f8f9fa',
           border: '1px solid #dee2e6',
           borderRadius: '8px',
@@ -918,6 +917,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             </button>
           </div>
         </div>
+      )}
       )}
 
       {!currentUser?.admin && (
@@ -1121,12 +1121,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         )}
       </div>
 
-      {/* ClockModal - Add this if you're using it in Dashboard */}
-      <ClockModal
-        showCamera={false} // You'll need to manage this state
-        handleCameraClick={() => {}} // You'll need to implement this
-        onSubmitClockLog={handleClockLogSubmit}
-      />
+
     </div>
   );
 };
