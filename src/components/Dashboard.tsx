@@ -910,15 +910,14 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                   Syncing...
                 </>
               ) : syncStatus === 'success' ? (
-                <>✅ Synced</>
+                <> Synced</>
               ) : (
-                <>🔄 Sync Now</>
+                <> Sync Now</>
               )}
             </button>
           </div>
         </div>
-      )}
-      )}
+      
 
       {!currentUser?.admin && (
         <div className={styles.Dashboard_widgets}>
@@ -1120,8 +1119,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           </p>
         )}
       </div>
-
-
     </div>
   );
 };
