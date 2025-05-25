@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import styles from "../css/Dashboard.module.css";
 import Camera from "../assets/camera.png";
 import Eye from "../assets/eye.png";
+// import Filter from "../assets/sort.png";
 import { useAuth } from "../context/AuthContext";
 import {
   doc,
@@ -20,6 +21,8 @@ import {
 import { db } from "../firebase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import html2pdf from "html2pdf.js";
+import dtrStyles from "../css/DTR.css?inline"; // Load as string with Vite/Webpack
 
 interface UserData {
   firstName: string;
@@ -589,95 +592,104 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser) return;
+  if (!currentUser) return;
 
-    let q;
-
-    if (currentUser.admin) {
-      q = query(
+  const q = currentUser.admin
+    ? query(
         collection(db, "clockLog"),
         where("status", "==", "pending"),
         orderBy("time", "desc")
-      );
-    } else {
-      q = query(
+      )
+    : query(
         collection(db, "clockLog"),
         where("uid", "==", currentUser.uid),
         orderBy("time", "desc")
       );
-    }
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const logs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ClockLogEntry[];
+  const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const logs = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ClockLogEntry[];
 
-      setClockLog(logs);
+    setClockLog(logs);
 
-      if (!currentUser.admin) {
-        const today = new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "2-digit",
-          year: "numeric"
-        });
+    if (!currentUser.admin) {
+      const today = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric"
+      });
 
-        const newTimestamps = {
-          clockIn: "-",
-          breakIn: "-",
-          breakOut: "-",
-          clockOut: "-"
-        };
+      const newTimestamps = {
+        clockIn: "-",
+        breakIn: "-",
+        breakOut: "-",
+        clockOut: "-"
+      };
 
-        const todayLogs = logs.filter(log => log.date === today);
-        
-        todayLogs.forEach(log => {
-          if (log.key && newTimestamps[log.key] === "-") {
-            newTimestamps[log.key] = log.timeString;
-          }
-        });
+      const todayLogs = logs.filter(log => log.date === today);
 
-        setTimestamps(newTimestamps);
+      todayLogs.forEach(log => {
+        let timeStr = log.timeString;
 
-        const userLogsToday = todayLogs.filter(log => log.uid === currentUser.uid);
-        const hasClockIn = userLogsToday.some(log => log.key === "clockIn");
-        const hasClockOut = userLogsToday.some(log => log.key === "clockOut");
-        const hasAutoClockOut = userLogsToday.some(
-          log => log.key === "clockOut" && log.timeString === "5:00 PM"
-        );
+        // Adjust clock-in before 8:00 AM
+        if (log.key === "clockIn" && parseTimeToMinutes(timeStr) < 8 * 60) {
+          timeStr = "8:00 AM (auto)";
+        }
 
-        const now = new Date();
-        const isAfter8PM = now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 0);
+        // Adjust clock-out between 5:00 PM and 8:00 PM
+        if (
+          log.key === "clockOut" &&
+          parseTimeToMinutes(timeStr) >= 17 * 60 &&
+          parseTimeToMinutes(timeStr) < 20 * 60
+        ) {
+          timeStr = "5:00 PM (auto)";
+        }
 
-        if (hasClockIn && !hasClockOut && !hasAutoClockOut && isAfter8PM && !isProcessing) {
-          setIsProcessing(true);
-          try {
-            await addDoc(collection(db, "clockLog"), {
-              uid: currentUser.uid,
-              key: "clockOut",
-              time: null,
-              timeString: "NULL (Missed 8PM)",
-              date: today,
-              status: "pending",
-              imageUrl: "",
-              userFirstName: userData?.firstName,
-              userSurname: userData?.surname,
-              isAuto: true,
-              notes: "Employee failed to clock out by 8:00 PM cutoff"
-            });
-          } catch (err) {
-            console.error("Auto clock-out failed:", err);
-          } finally {
-            setIsProcessing(false);
-          }
+        if (log.key && newTimestamps[log.key] === "-") {
+          newTimestamps[log.key] = timeStr;
+        }
+      });
+
+      setTimestamps(newTimestamps);
+
+      // Handle missed 8PM clock-out
+      const hasClockIn = todayLogs.some(log => log.key === "clockIn");
+      const hasClockOut = todayLogs.some(log => log.key === "clockOut");
+      const now = new Date();
+      const isAfter8PM = now.getHours() >= 20;
+
+      if (hasClockIn && !hasClockOut && isAfter8PM && !isProcessing) {
+        setIsProcessing(true);
+        try {
+          await addDoc(collection(db, "clockLog"), {
+            uid: currentUser.uid,
+            key: "clockOut",
+            time: null,
+            timeString: "NULL (Missed 8PM)",
+            date: today,
+            status: "pending",
+            imageUrl: "",
+            location: "",
+            userFirstName: userData?.firstName,
+            userSurname: userData?.surname,
+            isAuto: true,
+            notes: "Missed 8:00 PM clock-out cutoff"
+          });
+        } catch (err) {
+          console.error("Auto clock-out failed:", err);
+        } finally {
+          setIsProcessing(false);
         }
       }
-    }, (error) => {
-      console.error("Error fetching logs:", error);
-    });
+    }
+  }, (error) => {
+    console.error("Error fetching logs:", error);
+  });
 
-    return () => unsubscribe();
-  }, [currentUser, isProcessing, userData]);
+  return () => unsubscribe();
+}, [currentUser, isProcessing, userData]); 
 
   useEffect(() => {
     const updateClock = () => {
@@ -821,6 +833,247 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   };
+
+  const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
+  const logs = [...clockLog]; // all logs from Firestore
+  const monthlyGrouped: Record<string, WeeklyReportDay[]> = {};
+
+  const logsByDate: Record<string, WeeklyReportDay> = {};
+
+  logs.forEach(log => {
+    if (!log.time || !log.key || !log.timeString) return;
+
+    const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+    const fullDateStr = logDateObj.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric",
+    });
+
+    const monthKey = logDateObj.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric"
+    });
+
+    const groupKey = currentUser?.admin 
+      ? `${log.uid}_${fullDateStr}` 
+      : fullDateStr;
+
+    if (!logsByDate[groupKey]) {
+      logsByDate[groupKey] = {
+        date: fullDateStr,
+        workingHours: "",
+        userId: log.uid,
+        logIds: [],
+        employeeName: currentUser?.admin
+          ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
+          : undefined,
+        isComplete: false,
+        hasPending: true
+      };
+    }
+
+    logsByDate[groupKey].logIds.push(log.id);
+    if (!logsByDate[groupKey][log.key]) {
+      logsByDate[groupKey][log.key] = log.timeString;
+    }
+    logsByDate[groupKey].status = log.status;
+  });
+
+  Object.values(logsByDate).forEach(entry => {
+    entry.workingHours = calculateWorkingHours(
+      entry.clockIn || "",
+      entry.breakIn || "",
+      entry.breakOut || "",
+      entry.clockOut || ""
+    );
+    entry.isComplete = !!entry.clockIn && !!entry.clockOut;
+
+    const dateObj = new Date(entry.date);
+    const monthKey = dateObj.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric"
+    });
+
+    if (!monthlyGrouped[monthKey]) {
+      monthlyGrouped[monthKey] = [];
+    }
+
+    monthlyGrouped[monthKey].push(entry);
+  });
+
+  return monthlyGrouped;
+};
+
+const generateDTRHtml = (
+  name: string,
+  position: string,
+  office: string,
+  logs: WeeklyReportDay[],
+  month: string,
+  holidayMap: Record<string, string>
+): string => {
+  const logMap: Record<number, WeeklyReportDay> = {};
+  logs.forEach(log => {
+    const date = new Date(log.date);
+    logMap[date.getDate()] = log;
+  });
+
+  const [monthName, yearStr] = month.split(" ");
+  const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
+  const year = parseInt(yearStr, 10);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  const rows = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const dateObj = new Date(year, monthIndex, day);
+    const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+    const log = logMap[day];
+    const readableDate = dateObj.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+    });
+
+    const isSunday = dateObj.getDay() === 0;
+    const isHoliday = holidayMap[dateStr];
+
+    const rowStyle = isHoliday
+      ? 'style="background-color: #ffdede;"'
+      : isSunday
+        ? 'style="background-color: #f0f0f0;"'
+        : log ? '' : 'style="background-color: #fff8dc;"'; // Yellow for absent
+
+    const notes = isHoliday
+      ? holidayMap[dateStr]
+      : isSunday
+        ? "Sunday"
+        : log
+          ? ""
+          : "Absent";
+
+    return `
+      <tr ${rowStyle}>
+        <td>${readableDate}</td>
+        <td>${log?.clockIn || "-"}</td>
+        <td>${log?.breakIn || "-"}</td>
+        <td>${log?.breakOut || "-"}</td>
+        <td>${log?.clockOut || "-"}</td>
+        <td>${notes || "-"}</td>
+      </tr>`;
+  }).join("");
+
+  return `
+  <div class="DTR">
+    <div class="Civil">
+      <span>Civil Service Form No. 48</span>
+      <span>1-136</span>
+    </div>
+
+    <div class="Daily">
+      <span class="Bold">DAILY TIME RECORD</span>
+      <div class="Daily-inner">
+        <span class="Bold Name">${name}</span>
+        <span>${position}</span>
+        <span>${office}</span>
+      </div>
+    </div>
+
+    <div class="Month">
+      <span>For the Month of: ${month}</span>
+      <div class="Month-inner">
+        <span>Official Hours of:</span>
+        <span>Regular Days:</span>
+        <span>Arrival and Departure:</span>
+        <span>Saturdays:</span>
+      </div>
+    </div>
+
+    <div class="Table">
+      <span class="Bold">PERMANENT</span>
+      <table border="1" cellpadding="4" cellspacing="0">
+        <thead>
+          <tr>
+            <th rowspan="2">Date</th>
+            <th colspan="2">AM</th>
+            <th colspan="2">PM</th>
+            <th rowspan="2">UNDERTIME</th>
+          </tr>
+          <tr>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+
+    <div class="Certify">
+      <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
+      <span class="Signature"></span>
+      <span>Reviewed by:</span>
+      <span class="Signature"></span>
+      <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
+    </div>
+
+    <div class="Verified">
+      <span>VERIFIED as to the prescribed office hours</span>
+      <div class="Verified-inner">
+        <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+        <span class="Bold">Chief - Curriculum Implementation Division</span>
+      </div>
+    </div>
+  </div>`;
+};
+
+const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
+  const res = await fetch("https://date.nager.at/api/v3/PublicHolidays/2025/PH");
+  const data = await res.json();
+
+  // Return as map: { "2025-01-01": "New Year's Day", ... }
+  const holidayMap: Record<string, string> = {};
+  data.forEach((item: any) => {
+    holidayMap[item.date] = item.localName;
+  });
+
+  return holidayMap;
+};
+
+
+
+const exportToPDF = async () => {
+  const holidayMap = await fetchPhilippineHolidays();
+  const logsByMonth = getMonthlyGroupedLogs();
+  const wrapper = document.createElement("div");
+
+  Object.entries(logsByMonth).forEach(([month, logs]) => {
+    const html = generateDTRHtml(
+      `${userData?.firstName} ${userData?.surname}`,
+      "Position Here",
+      "Office Name Here",
+      logs,
+      month,
+      holidayMap
+    );
+
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    wrapper.appendChild(div);
+  });
+
+  // Add CSS
+  const style = document.createElement("style");
+  style.innerHTML = dtrStyles;
+  wrapper.prepend(style);
+
+  html2pdf()
+    .set({ filename: "DTR.pdf", html2canvas: { scale: 2 } })
+    .from(wrapper)
+    .save();
+};
+
+
 
   const handleApprove = async (logIds: string[]) => {
     setIsProcessing(true);
@@ -1168,12 +1421,14 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             {currentUser?.admin ? "Employee Time Logs" : "Weekly Report"}
           </span>
           <div className={styles.Head_button}>
-            <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
+            {/* <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
+            </button> */}
+            {!currentUser?.admin && (
+            <button onClick={exportToPDF} className={styles.ExportButton}>
+              Export Monthly DTR PDF
             </button>
-            <button onClick={exportToExcel} className={styles.ExportButton}>
-              Export to Excel
-            </button>
+            )}
           </div>
         </div>
 
@@ -1181,31 +1436,31 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           <div className={styles.WeeklyTable}>
             <div className={styles.Clock_day}>
               <div className={styles.Clock_morning}>
-                <h2>Morning:</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      {currentUser?.admin && <th>Employee</th>}
-                      <th>Date</th>
-                      <th>Clock In</th>
-                      <th>Break In</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyReportData.map((entry, index) => {
-                      const employeeName = entry.employeeName || "Unknown User";
+              <h2>Morning:</h2>
+              <table>
+                <thead>
+                  <tr>
+                    {currentUser?.admin && <th>Employee</th>}
+                    <th>Date</th>
+                    <th>Clock In</th>
+                    <th>Break In</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyReportData.map((entry, index) => {
+                    const employeeName = entry.employeeName || "Unknown User";
 
-                      return (
-                        <tr key={index}>
-                          {currentUser?.admin && <td>{employeeName}</td>}
-                          <td>{entry.date}</td>
-                          <td>{entry.clockIn || "-"}</td>
-                          <td>{entry.breakIn || "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                    return (
+                      <tr key={index}>
+                        {currentUser?.admin && <td>{employeeName}</td>}
+                        <td>{entry.date}</td>
+                        <td>{entry.clockIn || "-"}</td>
+                        <td>{entry.breakIn || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
               </div>
 
               <div className={styles.Clock_afternoon}>
@@ -1217,9 +1472,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                       <th>Date</th>
                       <th>Break Out</th>
                       <th>Clock Out</th>
-                      <th>Working Hours</th>
-                      <th>Status</th>
-                      {currentUser?.admin && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1239,52 +1491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                           {currentUser?.admin && <td>{employeeName}</td>}
                           <td>{entry.date}</td>
                           <td>{entry.breakOut || "-"}</td>
-                          <td>{entry.clockOut || 
-                            (new Date().getHours() > 17 || 
-                              (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
-                              ? "5:00 PM (auto)" 
-                              : "-")
-                          }</td>
-                          <td>{entry.workingHours}</td>
-                          <td style={statusStyle}>{statusText}</td>
-                          {currentUser?.admin && (
-                            <td>
-                              {entry.status === 'pending' && (
-                                <div style={{ display: 'flex', gap: '5px' }}>
-                                  <button
-                                    onClick={() => handleApprove(entry.logIds)}
-                                    disabled={isProcessing}
-                                    style={{
-                                      background: '#28a745',
-                                      color: 'white',
-                                      border: 'none',
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      cursor: 'pointer',
-                                      fontSize: '12px'
-                                    }}
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(entry.logIds)}
-                                    disabled={isProcessing}
-                                    style={{
-                                      background: '#dc3545',
-                                      color: 'white',
-                                      border: 'none',
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      cursor: 'pointer',
-                                      fontSize: '12px'
-                                    }}
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          )}
+                          <td>{entry.clockOut || "-"}</td>
                         </tr>
                       );
                     })}
@@ -1292,6 +1499,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 </table>
               </div>
             </div>
+
+            
+
 
             <div style={{
               textAlign: 'right',

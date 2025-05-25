@@ -7,6 +7,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { MonitoringProvider } from "./context/MonitoringContext";
 import "./css/App.module.css"
+import PublicRoute from "./components/PublicRoute";
 
 function App() {
   const [isLogout, setIsLogout] = useState(false);
@@ -25,8 +26,22 @@ function App() {
       <MonitoringProvider>
         <Router>
           <Routes>
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/" element={<Login />} />
+            <Route
+              path="/signup"
+              element={
+                <PublicRoute>
+                  <Signup />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
             <Route
               path="/home"
               element={

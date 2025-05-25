@@ -46,7 +46,7 @@ const Login = () => {
           });
   
           // Redirect to Home page
-          navigate("/Home");
+          navigate("/Home", {replace: true});
         }
       
     } catch (err) {
@@ -73,7 +73,7 @@ const Login = () => {
         });
 
         // Redirect to Home page
-        navigate("/Home");
+        navigate("/Home", {replace: true});
       }
     
     } catch (err) {

@@ -256,6 +256,17 @@ th {
    background-color: #fff;
 }
 
+/* Add to your CSS */
+.clickableName {
+  color: #0066cc;
+  cursor: pointer;
+}
+
+.clickableName:hover {
+  background-color: #f0f7ff;
+  text-decoration: underline;
+}
+
 @keyframes appear {
   from {
     opacity: 0;

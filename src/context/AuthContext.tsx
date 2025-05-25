@@ -8,6 +8,7 @@ export type ExtendedUser = User & {
   approved?: boolean;
   userFirstName?: string;
   userSurname?: string;
+  email?: string;
 };
 
 type AuthContextType = {
@@ -34,7 +35,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           admin: userData.admin,
           approved: userData.approved,
           userFirstName: userData.firstName,
-          userSurname: userData.surname
+          userSurname: userData.surname,
+          email: userData.email
         });
       }
     } else {

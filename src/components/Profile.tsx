@@ -8,11 +8,7 @@ import styles from "../css/Profile.module.css";
 import Avatar from "../assets/avatar.png";
 import Edit from "../assets/Edit.png";
 import User from "../assets/user.png";
-import Gender from "../assets/gender.png";
 import Mail from "../assets/mail.png";
-import Location from "../assets/location.png";
-import Age from "../assets/age.png";
-import Call from "../assets/call.png";
 import Logout from '../assets/logout-w.png'
 import Pass from '../assets/padlock.png'
 import Key from '../assets/key.png'
@@ -20,6 +16,8 @@ import Key from '../assets/key.png'
 import Scheduled from "./Scheduled";
 import Summary from "./Summary";
 import LastWeekLog from "./LastWeekLog";
+import { auth } from "../firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 
 type ProfileData = {
   uid: string;
@@ -38,8 +36,15 @@ type ProfileData = {
   createdAt: Date | { seconds: number; nanoseconds: number }; // Firestore timestamp
 };
 
+type ProfileProps = {
+  userId?: string; // Add this prop type
+};
 
-const Profile = () => {
+const Profile = ({ userId }: ProfileProps) => {
+  const [isViewingOtherProfile, setIsViewingOtherProfile] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,19 +64,43 @@ const Profile = () => {
   const { currentUser } = useAuth();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
+  const isGoogleSignedIn = currentUser?.providerData?.some(
+  (provider) => provider.providerId === 'google.com'
+);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (currentUser) {
-        const docRef = doc(db, "users", currentUser.uid);
+      try {
+        const targetUserId = userId || currentUser?.uid;
+        if (!targetUserId) return;
+
+        setIsViewingOtherProfile(!!userId && userId !== currentUser?.uid);
+
+        const docRef = doc(db, "users", targetUserId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setProfileData(docSnap.data() as ProfileData);
         }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
       }
     };
     fetchProfile();
-  }, [currentUser]);
+  }, [currentUser, userId]);
+
+
+  // useEffect(() => {
+  //   const fetchProfile = async () => {
+  //     if (currentUser) {
+  //       const docRef = doc(db, "users", currentUser.uid);
+  //       const docSnap = await getDoc(docRef);
+  //       if (docSnap.exists()) {
+  //         setProfileData(docSnap.data() as ProfileData);
+  //       }
+  //     }
+  //   };
+  //   fetchProfile();
+  // }, [currentUser]);
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -81,6 +110,50 @@ const Profile = () => {
   };
   const handleSave = async () => {
     if (!currentUser || !profileData) return;
+
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      alert("No authenticated user found.");
+      return;
+    }
+
+    // Check if user is Google-signed-in
+    const isGoogleSignedIn = firebaseUser.providerData?.some(
+      (provider) => provider.providerId === 'google.com'
+    );
+
+    if ((newPassword || confirmPassword) && !isGoogleSignedIn) {
+      if (newPassword !== confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+      if (newPassword.length < 8) {
+        alert("Password should be at least 8 characters.");
+        return;
+      }
+      if (!currentPassword) {
+        alert("Please enter your current password to confirm.");
+        return;
+      }
+
+      try {
+        const credential = EmailAuthProvider.credential(
+          firebaseUser.email!,
+          currentPassword
+        );
+        await reauthenticateWithCredential(firebaseUser, credential);
+        await updatePassword(firebaseUser, newPassword);
+        alert("Password updated successfully.");
+      } catch (error) {
+        console.error("Error updating password:", error);
+        alert("Failed to update password. Your current password may be incorrect.");
+        return;
+      }
+    } else if (isGoogleSignedIn && (newPassword || confirmPassword)) {
+      alert("Google-signed-in users cannot change password here.");
+      return;
+    }
 
     if (!profileData.phone?.match(/^\d{11}$/)) {
       alert("Phone number must be 11 digits.");
@@ -111,6 +184,9 @@ const Profile = () => {
       avatar: profileData.avatar || "",
     });
     setIsEditing(false);
+    setNewPassword(""); // Clear fields after save
+    setConfirmPassword("");
+    setCurrentPassword("");
   };
 
 
@@ -130,8 +206,13 @@ const Profile = () => {
   return (
     <div className={styles.Profile}>
       <span className={styles.Profile_up}>
-        <span  className={styles.Profile_title}>Profile</span>
-        <img src={Logout} />
+        <span className={styles.Profile_title}>Profile</span>
+        {profileData?.admin || isViewingOtherProfile && (
+          <div className={styles.AdminBadge}>
+            <span>ADMIN VIEW</span>
+          </div>
+        )}
+        <img src={Logout} alt="logout" />
       </span>
       <div className={styles.Profile_inner}>
         <div className={styles.Profile_top}>
@@ -161,20 +242,24 @@ const Profile = () => {
           <div className={styles.Personal_details}>
             <div className={styles.Detail_head}>
               <span className={styles.Personal}>Personal Details</span>
-              {!isEditing ? (
-                <button className={styles.Edit} onClick={() => setIsEditing(true)}>
-                  <img src={Edit} alt="Edit icon" />
-                  <span>Edit</span>
-                </button>
-              ) : (
-                <div className={styles.Saved}>
-                  <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
-                    Save
-                  </button>
-                  <button className={styles.Cancel} onClick={() => setIsEditing(false)}>
-                    Cancel
-                  </button>
-                </div>
+              {!isViewingOtherProfile && (
+                <>
+                  {!isEditing ? (
+                    <button className={styles.Edit} onClick={() => setIsEditing(true)}>
+                      <img src={Edit} alt="Edit icon" />
+                      <span>Edit</span>
+                    </button>
+                  ) : (
+                    <div className={styles.Saved}>
+                      <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
+                        <span>Save</span>
+                      </button>
+                      <button className={styles.Cancel} onClick={() => setIsEditing(false)}>
+                        <span>Cancel</span>
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -202,6 +287,21 @@ const Profile = () => {
                   />
                 </div>
               </div>
+{!isGoogleSignedIn && (
+  <>
+              <div className={styles.Detail}>
+                <img src={Key} alt="Current Password icon" />
+                <div className={styles.Details_input}>
+                  <label htmlFor="">Current Password:</label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    readOnly={!isEditing}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
 
               <div className={styles.Detail}>
                 <img src={Pass} alt="Location icon" />
@@ -209,9 +309,9 @@ const Profile = () => {
                   <label htmlFor="">New Password:</label>
                   <input
                     type="password"
-                    value={profileData?.location || ""}
+                    value={newPassword}
                     readOnly={!isEditing}
-                    onChange={(e) => handleChange("location", e.target.value)}
+                    onChange={(e) => setNewPassword(e.target.value)}
                   />
                 </div>
               </div>
@@ -222,14 +322,27 @@ const Profile = () => {
                   <label htmlFor="">Confirm Password:</label>
                   <input
                     type="password"
-                    value={profileData?.phone || ""}
+                    value={confirmPassword}
                     readOnly={!isEditing}
-                    onChange={(e) => handleChange("phone", e.target.value.replace(/\D/, ""))}
-                    maxLength={11}
-                    pattern="[0-9]{11}"
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
               </div>
+              </>
+)}
+{isGoogleSignedIn && isEditing && (
+  <div className={styles.OAuthNotice}>
+    <p>You signed in with Google.</p>
+    <a 
+      href="https://myaccount.google.com/security" 
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Manage your Google account password
+    </a>
+  </div>
+)}
+
 
             </div>
           </div>
@@ -268,9 +381,9 @@ const Profile = () => {
             </button>
           </div>
 
-          {profileToggle === 1 && <LastWeekLog />}
+          {profileToggle === 1 && <LastWeekLog userId={userId} />}
           {profileToggle === 2 && <Scheduled />}
-          {profileToggle === 3 && <Summary />}
+          {profileToggle === 3 && <Summary userId={userId} />}
         </div>
       </div>
     </div>

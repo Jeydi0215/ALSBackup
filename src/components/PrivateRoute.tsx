@@ -3,6 +3,7 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../firebase";
 import { JSX, useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
+import styles from "../css/Loader.module.css"
 
 type Props = {
   children: JSX.Element;
@@ -32,13 +33,8 @@ const PrivateRoute = ({ children }: Props) => {
   }, [user, loading]);
 
   // If still loading auth state, show a persistent loader
-  if (loading) {
-    return <div className="fullscreen-loader">Loading...</div>;
-  }
-
-  // If auth check is done but approval is still being verified
-  if (user && checkingApproval) {
-    return <div className="fullscreen-loader">Verifying access...</div>;
+  if (loading || user && checkingApproval ) {
+    return <div className={styles.fullscreenLoader}><div className={styles.spinner}></div></div>;
   }
 
   // Redirect conditions
