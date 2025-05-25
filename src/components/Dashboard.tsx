@@ -14,11 +14,12 @@ import {
   onSnapshot,
   writeBatch,
   addDoc,
+  GeoPoint,
+  serverTimestamp
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import ClockModal from "./ClockModal"; 
 
 interface UserData {
   firstName: string;
@@ -83,47 +84,66 @@ class OfflineDB {
 
       request.onsuccess = (event) => {
         this.db = (event.target as IDBRequest).result;
+        console.log("✅ IndexedDB opened successfully");
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBRequest).result;
+        console.log("🔄 IndexedDB upgrade needed");
+        
         if (!db.objectStoreNames.contains('attendance')) {
-          db.createObjectStore('attendance', { keyPath: 'localId' });
+          const attendanceStore = db.createObjectStore('attendance', { keyPath: 'localId' });
+          console.log("✅ Created attendance object store");
         }
+        
         if (!db.objectStoreNames.contains('syncQueue')) {
-          db.createObjectStore('syncQueue', { keyPath: 'localId' });
+          const syncStore = db.createObjectStore('syncQueue', { keyPath: 'localId' });
+          console.log("✅ Created syncQueue object store");
         }
       };
     });
   }
 
   async saveAttendance(data: any): Promise<string> {
-    if (!this.db) await this.init();
+    console.log("💾 Saving attendance to IndexedDB:", data);
+    
+    if (!this.db) {
+      console.log("🔄 Database not initialized, initializing...");
+      await this.init();
+    }
     
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['attendance', 'syncQueue'], 'readwrite');
-      const localId = Date.now().toString();
+      const localId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       const attendanceStore = transaction.objectStore('attendance');
       const syncStore = transaction.objectStore('syncQueue');
       
       const record = { ...data, localId, status: 'pending' };
+      console.log("📝 Record to save:", record);
+      
+      transaction.oncomplete = () => {
+        console.log("✅ IndexedDB transaction completed successfully");
+        resolve(localId);
+      };
+      
+      transaction.onerror = (e) => {
+        console.error("❌ IndexedDB transaction error:", e);
+        reject((e.target as IDBRequest).error);
+      };
       
       const attendanceRequest = attendanceStore.add(record);
-      const syncRequest = syncStore.add(record);
-      
       attendanceRequest.onsuccess = () => {
-        syncRequest.onsuccess = () => resolve(localId);
+        console.log("✅ Added to attendance store");
+        const syncRequest = syncStore.add(record);
         syncRequest.onerror = (e) => {
-          console.error("Error adding to sync queue:", e);
-          reject((e.target as IDBRequest).error);
+          console.error("❌ Error adding to sync queue:", e);
         };
       };
       
       attendanceRequest.onerror = (e) => {
-        console.error("Error saving attendance:", e);
-        reject((e.target as IDBRequest).error);
+        console.error("❌ Error saving attendance:", e);
       };
     });
   }
@@ -136,8 +156,15 @@ class OfflineDB {
       const store = transaction.objectStore('syncQueue');
       const request = store.getAll();
       
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => resolve([]);
+      request.onsuccess = () => {
+        console.log("📋 Retrieved pending sync items:", request.result?.length || 0);
+        resolve(request.result || []);
+      };
+      
+      request.onerror = () => {
+        console.error("❌ Error getting pending sync items");
+        resolve([]);
+      };
     });
   }
 
@@ -149,14 +176,18 @@ class OfflineDB {
       const attendanceStore = transaction.objectStore('attendance');
       const syncStore = transaction.objectStore('syncQueue');
       
-      const attendanceRequest = attendanceStore.delete(localId);
-      const syncRequest = syncStore.delete(localId);
+      transaction.oncomplete = () => {
+        console.log("✅ Removed synced item:", localId);
+        resolve();
+      };
       
-      syncRequest.onsuccess = () => resolve();
-      syncRequest.onerror = (e) => {
-        console.error("Error removing synced item:", e);
+      transaction.onerror = (e) => {
+        console.error("❌ Error removing synced item:", e);
         reject((e.target as IDBRequest).error);
       };
+      
+      attendanceStore.delete(localId);
+      syncStore.delete(localId);
     });
   }
 }
@@ -188,8 +219,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     try {
       const pendingItems = await offlineDB.getPendingSyncItems();
       setPendingCount(pendingItems.length);
+      console.log("📊 Updated pending count:", pendingItems.length);
     } catch (error) {
-      console.error("Error checking pending items:", error);
+      console.error("❌ Error checking pending items:", error);
       setPendingCount(0);
     }
   };
@@ -199,12 +231,13 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     try {
       if (isManualSync) {
         setSyncStatus('syncing');
+        console.log("🔄 Starting manual sync...");
       }
 
       const pendingItems = await offlineDB.getPendingSyncItems();
       
       if (pendingItems.length === 0) {
-        console.log("No offline records to sync.");
+        console.log("✅ No offline records to sync.");
         if (isManualSync) {
           setSyncStatus('success');
           setTimeout(() => setSyncStatus('idle'), 2000);
@@ -213,16 +246,45 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return;
       }
 
-      console.log(`Syncing ${pendingItems.length} offline records...`);
+      console.log(`🔄 Syncing ${pendingItems.length} offline records...`);
 
       let successCount = 0;
       let errorCount = 0;
 
       const promises = pendingItems.map(async (item) => {
-        const { localId, status, ...firebaseData } = item;
+        const { localId, status, ...rawFirebaseData } = item;
 
         try {
-          await addDoc(collection(db, "clockLog"), firebaseData);
+          console.log("📤 Syncing item:", localId, rawFirebaseData);
+          
+          // Clean the data before sending to Firebase
+          const cleanedData = {
+            uid: rawFirebaseData.uid,
+            key: rawFirebaseData.key,
+            time: rawFirebaseData.time,
+            timeString: rawFirebaseData.timeString,
+            date: rawFirebaseData.date,
+            status: rawFirebaseData.status || "pending",
+            imageUrl: rawFirebaseData.imageUrl || "",
+            userFirstName: rawFirebaseData.userFirstName || "",
+            userSurname: rawFirebaseData.userSurname || "",
+            isAuto: rawFirebaseData.isAuto || false,
+            notes: rawFirebaseData.notes || "",
+            // Handle location properly - only include if it has valid data
+            ...(rawFirebaseData.location && 
+                rawFirebaseData.location.latitude !== undefined && 
+                rawFirebaseData.location.longitude !== undefined ? {
+              location: {
+                coordinates: new GeoPoint(rawFirebaseData.location.latitude, rawFirebaseData.location.longitude),
+                address: rawFirebaseData.location.address || "",
+                timestamp: serverTimestamp()
+              }
+            } : {})
+          };
+
+          console.log("🧹 Cleaned data for Firebase:", cleanedData);
+          
+          await addDoc(collection(db, "clockLog"), cleanedData);
           await offlineDB.removeSyncedItem(localId);
           console.log(`✅ Synced and removed localId: ${localId}`);
           successCount++;
@@ -266,20 +328,24 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
     
     if (syncStatus === 'syncing') {
+      console.log("⚠️ Sync already in progress");
       return; // Prevent multiple sync attempts
     }
     
+    console.log("🔄 Manual sync triggered");
     await syncPendingData(true);
   };
 
   // Updated useEffect for online/offline handling
   useEffect(() => {
     const handleOnline = () => {
+      console.log("🌐 Connection restored - going online");
       setIsOnline(true);
       syncPendingData(); // Auto-sync when coming online
     };
     
     const handleOffline = () => {
+      console.log("📱 Connection lost - going offline");
       setIsOnline(false);
       setShowOfflineAlert(true);
     };
@@ -288,6 +354,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     window.addEventListener('offline', handleOffline);
 
     // Initial sync check and pending count
+    console.log("🚀 Dashboard mounted, initializing...");
     syncPendingData();
     checkPendingItems();
 
@@ -575,9 +642,13 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return `${hours > 0 ? `${hours}h ` : ""}${minutes}m${suffix}`;
   };
 
+  // Enhanced handleCameraButtonClick with debugging
   const handleCameraButtonClick = async (e: React.MouseEvent, key: string) => {
     e.preventDefault();
     e.stopPropagation();
+
+    console.log("📷 Camera button clicked for:", key);
+    console.log("🔍 Button enabled check:", isButtonEnabled(key));
 
     if (!isButtonEnabled(key)) {
       alert(`You have already submitted your "${key.replace(/([A-Z])/g, ' $1')}" today.`);
@@ -585,6 +656,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
 
     actionKeyRef.current = key;
+    console.log("✅ Action key set to:", actionKeyRef.current);
+    console.log("🔗 Calling handleCameraClick with:", { key, isOffline: !isOnline });
+    
     handleCameraClick(key, !isOnline);
   };
 
@@ -718,6 +792,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
   };
 
+  // CLEAN handleClockLogSubmit function - NO syntax errors
   const handleClockLogSubmit = async (
     image: string,
     timestamp: string,
@@ -728,18 +803,27 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       address?: string;
     }
   ) => {
+    console.log("🎯 handleClockLogSubmit called");
+    
+    if (!currentUser || !actionKeyRef.current) {
+      console.error("❌ Missing user or action key");
+      alert("Missing required data. Please try again.");
+      return;
+    }
+
     try {
       const now = new Date();
-      const formattedDate = now.toLocaleDateString("en-US", {
+      const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+      const formattedDate = manilaTime.toLocaleDateString("en-US", {
         month: "long",
         day: "2-digit",
         year: "numeric"
       });
 
-      const data = {
-        uid: currentUser?.uid,
+      const baseData = {
+        uid: currentUser.uid,
         key: actionKeyRef.current,
-        time: Timestamp.now(),
+        time: Timestamp.fromDate(manilaTime),
         timeString: timestamp,
         date: formattedDate,
         status: "pending",
@@ -747,62 +831,77 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         userFirstName: userData?.firstName || "",
         userSurname: userData?.surname || "",
         isAuto: false,
-        notes: "",
-        location,
+        notes: ""
       };
 
-      // Check if online or offline
-      if (isOnline) {
-        // Save directly to Firestore when online
-        await addDoc(collection(db, "clockLog"), data);
-        console.log("Clock log saved to Firestore");
-      } else {
-        // Save to IndexedDB when offline
-        await offlineDB.saveAttendance(data);
-        console.log("Clock log saved offline - will sync when online");
-        
-        // Update pending count immediately
-        checkPendingItems();
-        
-        // Optional: Show user feedback
-        alert("You're offline. Your clock entry has been saved and will sync when you're back online.");
-      }
-    } catch (error) {
-      console.error("Error saving clock log:", error);
-      
-      // Fallback: if online save fails, save offline
-      if (isOnline) {
-        try {
-          const now = new Date();
-          const formattedDate = now.toLocaleDateString("en-US", {
-            month: "long",
-            day: "2-digit",
-            year: "numeric"
-          });
+      console.log("📄 Base data:", baseData);
 
-          const data = {
-            uid: currentUser?.uid,
+      if (isOnline) {
+        console.log("🌐 Attempting online save...");
+        
+        const firestoreData = {
+          ...baseData,
+          ...(location && location.latitude && location.longitude ? {
+            location: {
+              coordinates: new GeoPoint(location.latitude, location.longitude),
+              address: location.address || "",
+              timestamp: serverTimestamp()
+            }
+          } : {})
+        };
+
+        await addDoc(collection(db, "clockLog"), firestoreData);
+        console.log("✅ Online save successful");
+        
+      } else {
+        console.log("📱 Attempting offline save...");
+        
+        const offlineData = {
+          ...baseData,
+          ...(location ? { location } : {})
+        };
+
+        const localId = await offlineDB.saveAttendance(offlineData);
+        console.log("✅ Offline save successful:", localId);
+        
+        await checkPendingItems();
+        alert("You're offline. Your entry has been saved and will sync when online.");
+      }
+
+    } catch (mainError) {
+      console.error("❌ Main save failed:", mainError);
+      
+      if (isOnline) {
+        console.log("🔄 Trying offline fallback...");
+        try {
+          const fallbackData = {
+            uid: currentUser.uid,
             key: actionKeyRef.current,
             time: Timestamp.now(),
             timeString: timestamp,
-            date: formattedDate,
+            date: new Date().toLocaleDateString("en-US", {
+              month: "long", day: "2-digit", year: "numeric"
+            }),
             status: "pending",
             imageUrl: imageUrl || "",
             userFirstName: userData?.firstName || "",
             userSurname: userData?.surname || "",
             isAuto: false,
             notes: "",
-            location,
+            ...(location ? { location } : {})
           };
+
+          const localId = await offlineDB.saveAttendance(fallbackData);
+          console.log("✅ Fallback save successful:", localId);
+          await checkPendingItems();
+          alert("Network error. Saved offline - will sync when connection restored.");
           
-          await offlineDB.saveAttendance(data);
-          console.log("Firestore failed, saved offline as fallback");
-          checkPendingItems();
-          alert("Network error occurred. Your entry has been saved offline and will sync when connection is restored.");
-        } catch (offlineError) {
-          console.error("Both Firestore and offline save failed:", offlineError);
-          alert("Failed to save your clock entry. Please try again.");
+        } catch (fallbackError) {
+          console.error("❌ Fallback also failed:", fallbackError);
+          alert("Failed to save entry. Please try again.");
         }
+      } else {
+        alert("Failed to save entry. Please try again.");
       }
     }
   };
@@ -829,95 +928,94 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       {/* Sync Button Section - Always visible */}
       <div className={styles.SyncSection} style={{
-          background: '#f8f9fa',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          padding: '15px',
-          margin: '10px 0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '10px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              backgroundColor: isOnline ? '#28a745' : '#dc3545'
-            }}></div>
-            <span style={{ fontWeight: '600', color: '#495057' }}>
-              {isOnline ? 'Online' : 'Offline'}
+        background: '#f8f9fa',
+        border: '1px solid #dee2e6',
+        borderRadius: '8px',
+        padding: '15px',
+        margin: '10px 0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            backgroundColor: isOnline ? '#28a745' : '#dc3545'
+          }}></div>
+          <span style={{ fontWeight: '600', color: '#495057' }}>
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
+          {pendingCount > 0 && (
+            <span style={{
+              background: '#ffc107',
+              color: '#212529',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>
+              {pendingCount} pending sync
             </span>
-            {pendingCount > 0 && (
-              <span style={{
-                background: '#ffc107',
-                color: '#212529',
-                padding: '4px 8px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '600'
-              }}>
-                {pendingCount} pending sync
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {syncStatus === 'success' && (
-              <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
-                ✅ Sync completed successfully!
-              </span>
-            )}
-            {syncStatus === 'error' && (
-              <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
-                ❌ Sync failed. Please try again.
-              </span>
-            )}
-            
-            <button
-              onClick={handleManualSync}
-              disabled={!isOnline || syncStatus === 'syncing'}
-              style={{
-                background: syncStatus === 'syncing' ? '#6c757d' : 
-                           syncStatus === 'success' ? '#28a745' : 
-                           isOnline ? '#007bff' : '#6c757d',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: syncStatus === 'syncing' || !isOnline ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-                opacity: syncStatus === 'syncing' || !isOnline ? 0.6 : 1
-              }}
-            >
-              {syncStatus === 'syncing' ? (
-                <>
-                  <span style={{
-                    width: '12px',
-                    height: '12px',
-                    border: '2px solid transparent',
-                    borderTop: '2px solid white',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }}></span>
-                  Syncing...
-                </>
-              ) : syncStatus === 'success' ? (
-                <> Synced</>
-              ) : (
-                <> Sync Now</>
-              )}
-            </button>
-          </div>
+          )}
         </div>
-      
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {syncStatus === 'success' && (
+            <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
+              ✅ Sync completed successfully!
+            </span>
+          )}
+          {syncStatus === 'error' && (
+            <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
+              ❌ Sync failed. Please try again.
+            </span>
+          )}
+          
+          <button
+            onClick={handleManualSync}
+            disabled={!isOnline || syncStatus === 'syncing'}
+            style={{
+              background: syncStatus === 'syncing' ? '#6c757d' : 
+                         syncStatus === 'success' ? '#28a745' : 
+                         isOnline ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              cursor: syncStatus === 'syncing' || !isOnline ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease',
+              opacity: syncStatus === 'syncing' || !isOnline ? 0.6 : 1
+            }}
+          >
+            {syncStatus === 'syncing' ? (
+              <>
+                <span style={{
+                  width: '12px',
+                  height: '12px',
+                  border: '2px solid transparent',
+                  borderTop: '2px solid white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></span>
+                Syncing...
+              </>
+            ) : syncStatus === 'success' ? (
+              <>✅ Synced</>
+            ) : (
+              <>🔄 Sync Now</>
+            )}
+          </button>
+        </div>
+      </div>
 
       {!currentUser?.admin && (
         <div className={styles.Dashboard_widgets}>
