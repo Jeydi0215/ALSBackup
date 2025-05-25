@@ -190,6 +190,32 @@ class OfflineDB {
       syncStore.delete(localId);
     });
   }
+
+  // New method to check both IndexedDB and localStorage
+  async getAllPendingItems(): Promise<any[]> {
+    const indexedDBItems = await this.getPendingSyncItems();
+    
+    // Check localStorage fallback items
+    const localStorageItems: any[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('attendance_')) {
+        try {
+          const item = JSON.parse(localStorage.getItem(key) || '{}');
+          localStorageItems.push({
+            ...item,
+            localId: key,
+            isFromLocalStorage: true
+          });
+        } catch (error) {
+          console.error("Error parsing localStorage item:", key, error);
+        }
+      }
+    }
+
+    console.log("📊 Found items - IndexedDB:", indexedDBItems.length, "localStorage:", localStorageItems.length);
+    return [...indexedDBItems, ...localStorageItems];
+  }
 }
 
 const offlineDB = new OfflineDB('AttendanceDB');
@@ -214,19 +240,19 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Function to check pending items count
+  // Function to check pending items count from both sources
   const checkPendingItems = async () => {
     try {
-      const pendingItems = await offlineDB.getPendingSyncItems();
-      setPendingCount(pendingItems.length);
-      console.log("📊 Updated pending count:", pendingItems.length);
+      const allPendingItems = await offlineDB.getAllPendingItems();
+      setPendingCount(allPendingItems.length);
+      console.log("📊 Updated pending count:", allPendingItems.length);
     } catch (error) {
       console.error("❌ Error checking pending items:", error);
       setPendingCount(0);
     }
   };
 
-  // Enhanced syncPendingData function with better status handling
+  // Fixed syncPendingData function
   const syncPendingData = async (isManualSync = false) => {
     try {
       if (isManualSync) {
@@ -234,9 +260,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         console.log("🔄 Starting manual sync...");
       }
 
-      const pendingItems = await offlineDB.getPendingSyncItems();
+      // Get all pending items from both IndexedDB and localStorage
+      const allPendingItems = await offlineDB.getAllPendingItems();
       
-      if (pendingItems.length === 0) {
+      if (allPendingItems.length === 0) {
         console.log("✅ No offline records to sync.");
         if (isManualSync) {
           setSyncStatus('success');
@@ -246,22 +273,39 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return;
       }
 
-      console.log(`🔄 Syncing ${pendingItems.length} offline records...`);
+      console.log(`🔄 Syncing ${allPendingItems.length} offline records...`);
 
       let successCount = 0;
       let errorCount = 0;
 
-      const promises = pendingItems.map(async (item) => {
-        const { localId, status, ...rawFirebaseData } = item;
+      // Process each item
+      for (const item of allPendingItems) {
+        const { localId, status, isFromLocalStorage, ...rawFirebaseData } = item;
 
         try {
           console.log("📤 Syncing item:", localId, rawFirebaseData);
           
+          // Create proper Timestamp from the data
+          let firestoreTime;
+          if (rawFirebaseData.time && rawFirebaseData.time.seconds) {
+            // If it's already a Timestamp object
+            firestoreTime = new Timestamp(rawFirebaseData.time.seconds, rawFirebaseData.time.nanoseconds || 0);
+          } else if (rawFirebaseData.time && typeof rawFirebaseData.time === 'string') {
+            // If it's a string, parse it
+            firestoreTime = Timestamp.fromDate(new Date(rawFirebaseData.time));
+          } else if (rawFirebaseData.createdAt) {
+            // Use createdAt as fallback
+            firestoreTime = Timestamp.fromDate(new Date(rawFirebaseData.createdAt));
+          } else {
+            // Create new timestamp
+            firestoreTime = Timestamp.now();
+          }
+
           // Clean the data before sending to Firebase
           const cleanedData = {
             uid: rawFirebaseData.uid,
             key: rawFirebaseData.key,
-            time: rawFirebaseData.time,
+            time: firestoreTime,
             timeString: rawFirebaseData.timeString,
             date: rawFirebaseData.date,
             status: rawFirebaseData.status || "pending",
@@ -284,17 +328,26 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
           console.log("🧹 Cleaned data for Firebase:", cleanedData);
           
+          // Add to Firebase
           await addDoc(collection(db, "clockLog"), cleanedData);
-          await offlineDB.removeSyncedItem(localId);
+          
+          // Remove from local storage
+          if (isFromLocalStorage) {
+            localStorage.removeItem(localId);
+            console.log(`🗑️ Removed from localStorage: ${localId}`);
+          } else {
+            await offlineDB.removeSyncedItem(localId);
+            console.log(`🗑️ Removed from IndexedDB: ${localId}`);
+          }
+          
           console.log(`✅ Synced and removed localId: ${localId}`);
           successCount++;
+          
         } catch (error) {
           console.error(`❌ Error syncing item ${localId}:`, error);
           errorCount++;
         }
-      });
-
-      await Promise.all(promises);
+      }
       
       console.log(`✅ Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
       
@@ -309,7 +362,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       }
       
       // Update pending count
-      setPendingCount(errorCount);
+      await checkPendingItems();
       
     } catch (error) {
       console.error("❌ Error during offline sync:", error);
@@ -341,7 +394,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     const handleOnline = () => {
       console.log("🌐 Connection restored - going online");
       setIsOnline(true);
-      syncPendingData(); // Auto-sync when coming online
+      // Wait a bit before auto-syncing to ensure connection is stable
+      setTimeout(() => {
+        syncPendingData();
+      }, 1000);
     };
     
     const handleOffline = () => {
@@ -353,13 +409,22 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial sync check and pending count
+    // Initial setup
     console.log("🚀 Dashboard mounted, initializing...");
-    syncPendingData();
-    checkPendingItems();
+    
+    // Initialize IndexedDB and check pending items
+    offlineDB.init().then(() => {
+      checkPendingItems();
+      // Only auto-sync if we're online
+      if (navigator.onLine) {
+        syncPendingData();
+      }
+    }).catch(error => {
+      console.error("Failed to initialize IndexedDB:", error);
+    });
 
     // Check pending items periodically
-    const intervalId = setInterval(checkPendingItems, 5000); // Check every 5 seconds
+    const intervalId = setInterval(checkPendingItems, 10000); // Check every 10 seconds
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -831,7 +896,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         userFirstName: userData?.firstName || "",
         userSurname: userData?.surname || "",
         isAuto: false,
-        notes: ""
+        notes: "",
+        createdAt: now.toISOString()
       };
 
       console.log("📄 Base data:", baseData);
@@ -850,7 +916,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           } : {})
         };
 
-        await addDoc(collection(db, "clockLog"), firestoreData);
+        // Remove createdAt from Firestore data as it's not needed there
+        const { createdAt, ...cleanFirestoreData } = firestoreData;
+        await addDoc(collection(db, "clockLog"), cleanFirestoreData);
         console.log("✅ Online save successful");
         
       } else {
@@ -888,6 +956,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             userSurname: userData?.surname || "",
             isAuto: false,
             notes: "",
+            createdAt: new Date().toISOString(),
             ...(location ? { location } : {})
           };
 
@@ -918,8 +987,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       `}</style>
       
       <h1 className={styles.Dash_title}>Dashboard</h1>
-
-  
 
       {/* Sync Button Section - Always visible */}
       <div className={styles.SyncSection} style={{
@@ -961,12 +1028,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {syncStatus === 'success' && (
             <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
-               Sync completed successfully!
+              ✅ Sync completed successfully!
             </span>
           )}
           {syncStatus === 'error' && (
             <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
-               Sync failed. Please try again.
+              ❌ Sync failed. Please try again.
             </span>
           )}
           
@@ -1004,9 +1071,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 Syncing...
               </>
             ) : syncStatus === 'success' ? (
-              <> Synced</>
+              <>✅ Synced</>
             ) : (
-              <> Sync Now</>
+              <>🔄 Sync Now</>
             )}
           </button>
         </div>

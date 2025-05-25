@@ -93,6 +93,8 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
   const [isUploading, setIsUploading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState("");
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -148,6 +150,16 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       }
     };
   }, [showCamera]);
+
+  // Show success message with auto-hide
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+      setSuccessMessage("");
+    }, 4000); // Show for 4 seconds
+  };
 
   // Sync localStorage fallback records
   const syncLocalStorageFallback = async () => {
@@ -214,6 +226,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       }
 
       setSyncStatus("All pending records synced successfully!");
+      showSuccess("🎉 All offline records have been synced!");
     } catch (error) {
       console.error("Sync error:", error);
       setSyncStatus("Failed to sync some records");
