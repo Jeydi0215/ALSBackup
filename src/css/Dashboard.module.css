@@ -17,7 +17,7 @@
   -o-transform: translateX(-5rem);
   min-height:90dvh;
 }
-.Dashboard th{
+.Dashboard th, .Weekly th{
   color:#03396C;
   background-color:#fff;
 }
