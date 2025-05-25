@@ -667,38 +667,49 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   };
 
   const calculateUndertime = (entry: WeeklyReportDay): string => {
-    const parseMinutes = (t: string): number => {
-      const [h, mPart] = t.replace("AM", "").replace("PM", "").trim().split(":");
-      const m = parseInt(mPart || "0");
-      let hour = parseInt(h || "0");
+  const expectedMinutes = 8 * 60;
 
-      const isPM = /PM/i.test(t);
-      if (isPM && hour < 12) hour += 12;
-      if (!isPM && hour === 12) hour = 0;
-
-      return hour * 60 + m;
-    };
-
-    if (!entry.clockIn || !entry.clockOut) return "-";
-
-    const start = parseMinutes(entry.clockIn);
-    const end = parseMinutes(entry.clockOut);
-
-    let worked = end - start;
-
-    if (entry.breakIn && entry.breakOut) {
-      worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
-    }
-
-    const expected = 8 * 60;
-    const undertime = expected - worked;
-
-    if (undertime <= 0) return "-";
-
-    const hours = Math.floor(undertime / 60);
-    const minutes = undertime % 60;
-    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
+  const parseMinutes = (time: string | undefined): number => {
+    if (!time) return 0;
+    const [timePart, period] = time.split(" ");
+    const [hours, minutes] = timePart.split(":").map(Number);
+    let h = hours;
+    if (period === "PM" && h < 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return h * 60 + minutes;
   };
+
+  if (!entry.clockIn || !entry.clockOut) return "-";
+
+  const rawClockIn = parseMinutes(entry.clockIn);
+  const rawClockOut = parseMinutes(entry.clockOut);
+
+  // 🛑 Edge case: identical time
+  if (rawClockIn === rawClockOut) return "No Working Hours";
+
+  const start = Math.max(rawClockIn, 8 * 60);
+  let end = rawClockOut;
+
+  if (end >= 17 * 60 && end <= 20 * 60) end = 17 * 60;
+
+  // Deduct break
+  if (entry.breakOut && entry.breakIn) {
+    const bOut = parseMinutes(entry.breakOut);
+    const bIn = parseMinutes(entry.breakIn);
+    if (bOut && bIn && bIn > bOut) {
+      end -= (bIn - bOut);
+    }
+  }
+
+  const total = end - start;
+  const diff = expectedMinutes - total;
+
+  if (diff <= 0) return "-";
+
+  const hrs = Math.floor(diff / 60);
+  const mins = diff % 60;
+  return `${hrs > 0 ? `${hrs}h ` : ""}${mins}m`;
+};
 
   const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
     const logs = [...clockLog];
@@ -807,25 +818,27 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       const isFutureDate = dateObj > new Date();
 
-      const rowStyle = isHoliday
-        ? 'style="background-color: #ffdede;"'
-        : isSunday
-          ? 'style="background-color: #f0f0f0;"'
-          : isFutureDate
-            ? ''
-            : log
-              ? ''
-              : 'style="background-color: #fff8dc;"'; // Yellow for absent
+const notes = isHoliday
+  ? holidayMap[dateStr]
+  : isSunday
+    ? "Sunday"
+    : isFutureDate
+      ? "—"
+      : log
+        ? ""
+        : "Absent";
 
-      const notes = isHoliday
-        ? holidayMap[dateStr]
-        : isSunday
-          ? "Sunday"
-          : isFutureDate
-            ? "—"
-            : log
-              ? ""
-              : "Absent";
+        const rowStyle = isHoliday
+  ? 'style="background-color: #ffdede;"'
+  : isSunday
+    ? 'style="background-color: #f0f0f0;"'
+    : isFutureDate
+      ? ''
+      : log
+        ? ''
+        : 'style="background-color: #fff8dc;"'; // Yellow for absent
+
+
 
 
       return `
