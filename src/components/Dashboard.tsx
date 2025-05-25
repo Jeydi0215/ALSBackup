@@ -84,32 +84,32 @@ class OfflineDB {
 
       request.onsuccess = (event) => {
         this.db = (event.target as IDBRequest).result;
-        console.log("✅ IndexedDB opened successfully");
+        console.log("IndexedDB opened successfully");
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBRequest).result;
-        console.log("🔄 IndexedDB upgrade needed");
+        console.log("IndexedDB upgrade needed");
         
         if (!db.objectStoreNames.contains('attendance')) {
           const attendanceStore = db.createObjectStore('attendance', { keyPath: 'localId' });
-          console.log("✅ Created attendance object store");
+          console.log("Created attendance object store");
         }
         
         if (!db.objectStoreNames.contains('syncQueue')) {
           const syncStore = db.createObjectStore('syncQueue', { keyPath: 'localId' });
-          console.log("✅ Created syncQueue object store");
+          console.log("Created syncQueue object store");
         }
       };
     });
   }
 
   async saveAttendance(data: any): Promise<string> {
-    console.log("💾 Saving attendance to IndexedDB:", data);
+    console.log("Saving attendance to IndexedDB:", data);
     
     if (!this.db) {
-      console.log("🔄 Database not initialized, initializing...");
+      console.log("Database not initialized, initializing...");
       await this.init();
     }
     
@@ -121,29 +121,29 @@ class OfflineDB {
       const syncStore = transaction.objectStore('syncQueue');
       
       const record = { ...data, localId, status: 'pending' };
-      console.log("📝 Record to save:", record);
+      console.log("Record to save:", record);
       
       transaction.oncomplete = () => {
-        console.log("✅ IndexedDB transaction completed successfully");
+        console.log("IndexedDB transaction completed successfully");
         resolve(localId);
       };
       
       transaction.onerror = (e) => {
-        console.error("❌ IndexedDB transaction error:", e);
+        console.error("IndexedDB transaction error:", e);
         reject((e.target as IDBRequest).error);
       };
       
       const attendanceRequest = attendanceStore.add(record);
       attendanceRequest.onsuccess = () => {
-        console.log("✅ Added to attendance store");
+        console.log("Added to attendance store");
         const syncRequest = syncStore.add(record);
         syncRequest.onerror = (e) => {
-          console.error("❌ Error adding to sync queue:", e);
+          console.error("Error adding to sync queue:", e);
         };
       };
       
       attendanceRequest.onerror = (e) => {
-        console.error("❌ Error saving attendance:", e);
+        console.error("Error saving attendance:", e);
       };
     });
   }
@@ -157,12 +157,12 @@ class OfflineDB {
       const request = store.getAll();
       
       request.onsuccess = () => {
-        console.log("📋 Retrieved pending sync items:", request.result?.length || 0);
+        console.log("Retrieved pending sync items:", request.result?.length || 0);
         resolve(request.result || []);
       };
       
       request.onerror = () => {
-        console.error("❌ Error getting pending sync items");
+        console.error("Error getting pending sync items");
         resolve([]);
       };
     });
@@ -177,12 +177,12 @@ class OfflineDB {
       const syncStore = transaction.objectStore('syncQueue');
       
       transaction.oncomplete = () => {
-        console.log("✅ Removed synced item:", localId);
+        console.log("Removed synced item:", localId);
         resolve();
       };
       
       transaction.onerror = (e) => {
-        console.error("❌ Error removing synced item:", e);
+        console.error("Error removing synced item:", e);
         reject((e.target as IDBRequest).error);
       };
       
@@ -213,7 +213,7 @@ class OfflineDB {
       }
     }
 
-    console.log("📊 Found items - IndexedDB:", indexedDBItems.length, "localStorage:", localStorageItems.length);
+    console.log("Found items - IndexedDB:", indexedDBItems.length, "localStorage:", localStorageItems.length);
     return [...indexedDBItems, ...localStorageItems];
   }
 }
@@ -245,26 +245,26 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     try {
       const allPendingItems = await offlineDB.getAllPendingItems();
       setPendingCount(allPendingItems.length);
-      console.log("📊 Updated pending count:", allPendingItems.length);
+      console.log("Updated pending count:", allPendingItems.length);
     } catch (error) {
-      console.error("❌ Error checking pending items:", error);
+      console.error("Error checking pending items:", error);
       setPendingCount(0);
     }
   };
 
-  // Fixed syncPendingData function
+  // Fixed syncPendingData function with better error handling
   const syncPendingData = async (isManualSync = false) => {
     try {
       if (isManualSync) {
         setSyncStatus('syncing');
-        console.log("🔄 Starting manual sync...");
+        console.log("Starting manual sync...");
       }
 
       // Get all pending items from both IndexedDB and localStorage
       const allPendingItems = await offlineDB.getAllPendingItems();
       
       if (allPendingItems.length === 0) {
-        console.log("✅ No offline records to sync.");
+        console.log("No offline records to sync.");
         if (isManualSync) {
           setSyncStatus('success');
           setTimeout(() => setSyncStatus('idle'), 2000);
@@ -273,83 +273,113 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return;
       }
 
-      console.log(`🔄 Syncing ${allPendingItems.length} offline records...`);
+      console.log(`Syncing ${allPendingItems.length} offline records...`);
 
       let successCount = 0;
       let errorCount = 0;
+      const errors = [];
 
-      // Process each item
+      // Process each item sequentially to avoid overwhelming Firebase
       for (const item of allPendingItems) {
         const { localId, status, isFromLocalStorage, ...rawFirebaseData } = item;
 
         try {
-          console.log("📤 Syncing item:", localId, rawFirebaseData);
+          console.log("Syncing item:", localId);
+          console.log("Raw data:", rawFirebaseData);
           
+          // Validate required fields
+          if (!rawFirebaseData.uid || !rawFirebaseData.key || !rawFirebaseData.timeString || !rawFirebaseData.date) {
+            throw new Error(`Missing required fields for item ${localId}`);
+          }
+
           // Create proper Timestamp from the data
           let firestoreTime;
-          if (rawFirebaseData.time && rawFirebaseData.time.seconds) {
-            // If it's already a Timestamp object
+          
+          // Handle different timestamp formats
+          if (rawFirebaseData.time && typeof rawFirebaseData.time === 'object' && rawFirebaseData.time.seconds) {
+            // Already a Timestamp-like object
             firestoreTime = new Timestamp(rawFirebaseData.time.seconds, rawFirebaseData.time.nanoseconds || 0);
-          } else if (rawFirebaseData.time && typeof rawFirebaseData.time === 'string') {
-            // If it's a string, parse it
-            firestoreTime = Timestamp.fromDate(new Date(rawFirebaseData.time));
+          } else if (rawFirebaseData.time && rawFirebaseData.time._seconds) {
+            // Serialized Timestamp
+            firestoreTime = new Timestamp(rawFirebaseData.time._seconds, rawFirebaseData.time._nanoseconds || 0);
           } else if (rawFirebaseData.createdAt) {
             // Use createdAt as fallback
             firestoreTime = Timestamp.fromDate(new Date(rawFirebaseData.createdAt));
           } else {
-            // Create new timestamp
+            // Create new timestamp based on current time
             firestoreTime = Timestamp.now();
           }
 
-          // Clean the data before sending to Firebase
+          // Build the clean data object
           const cleanedData = {
-            uid: rawFirebaseData.uid,
-            key: rawFirebaseData.key,
+            uid: String(rawFirebaseData.uid),
+            key: String(rawFirebaseData.key),
             time: firestoreTime,
-            timeString: rawFirebaseData.timeString,
-            date: rawFirebaseData.date,
-            status: rawFirebaseData.status || "pending",
-            imageUrl: rawFirebaseData.imageUrl || "",
-            userFirstName: rawFirebaseData.userFirstName || "",
-            userSurname: rawFirebaseData.userSurname || "",
-            isAuto: rawFirebaseData.isAuto || false,
-            notes: rawFirebaseData.notes || "",
-            // Handle location properly - only include if it has valid data
-            ...(rawFirebaseData.location && 
-                rawFirebaseData.location.latitude !== undefined && 
-                rawFirebaseData.location.longitude !== undefined ? {
-              location: {
-                coordinates: new GeoPoint(rawFirebaseData.location.latitude, rawFirebaseData.location.longitude),
-                address: rawFirebaseData.location.address || "",
-                timestamp: serverTimestamp()
-              }
-            } : {})
+            timeString: String(rawFirebaseData.timeString),
+            date: String(rawFirebaseData.date),
+            status: String(rawFirebaseData.status || "pending"),
+            imageUrl: String(rawFirebaseData.imageUrl || ""),
+            userFirstName: String(rawFirebaseData.userFirstName || ""),
+            userSurname: String(rawFirebaseData.userSurname || ""),
+            isAuto: Boolean(rawFirebaseData.isAuto),
+            notes: String(rawFirebaseData.notes || "")
           };
 
-          console.log("🧹 Cleaned data for Firebase:", cleanedData);
+          // Add location if it exists and is valid
+          if (rawFirebaseData.location && 
+              typeof rawFirebaseData.location.latitude === 'number' && 
+              typeof rawFirebaseData.location.longitude === 'number' &&
+              !isNaN(rawFirebaseData.location.latitude) &&
+              !isNaN(rawFirebaseData.location.longitude)) {
+            
+            cleanedData.location = {
+              coordinates: new GeoPoint(rawFirebaseData.location.latitude, rawFirebaseData.location.longitude),
+              address: String(rawFirebaseData.location.address || ""),
+              timestamp: serverTimestamp()
+            };
+          }
+
+          console.log("Cleaned data for Firebase:", cleanedData);
           
-          // Add to Firebase
-          await addDoc(collection(db, "clockLog"), cleanedData);
+          // Add to Firebase with timeout
+          const docRef = await Promise.race([
+            addDoc(collection(db, "clockLog"), cleanedData),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Firebase timeout')), 10000)
+            )
+          ]);
           
-          // Remove from local storage
+          console.log("Document added with ID:", docRef.id);
+          
+          // Remove from local storage after successful Firebase write
           if (isFromLocalStorage) {
             localStorage.removeItem(localId);
-            console.log(`🗑️ Removed from localStorage: ${localId}`);
+            console.log(`Removed from localStorage: ${localId}`);
           } else {
             await offlineDB.removeSyncedItem(localId);
-            console.log(`🗑️ Removed from IndexedDB: ${localId}`);
+            console.log(`Removed from IndexedDB: ${localId}`);
           }
           
-          console.log(`✅ Synced and removed localId: ${localId}`);
           successCount++;
           
+          // Small delay between operations to prevent rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
         } catch (error) {
-          console.error(`❌ Error syncing item ${localId}:`, error);
+          console.error(`Error syncing item ${localId}:`, error);
+          errors.push(`${localId}: ${error.message}`);
           errorCount++;
+          
+          // Continue with next item instead of stopping
+          continue;
         }
       }
       
-      console.log(`✅ Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      console.log(`Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      
+      if (errors.length > 0) {
+        console.error("Sync errors:", errors);
+      }
       
       if (isManualSync) {
         if (errorCount === 0) {
@@ -358,6 +388,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         } else {
           setSyncStatus('error');
           setTimeout(() => setSyncStatus('idle'), 3000);
+          // Show specific error to user
+          alert(`Sync completed with errors. ${successCount} items synced, ${errorCount} failed. Check console for details.`);
         }
       }
       
@@ -365,10 +397,11 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       await checkPendingItems();
       
     } catch (error) {
-      console.error("❌ Error during offline sync:", error);
+      console.error("Error during offline sync:", error);
       if (isManualSync) {
         setSyncStatus('error');
         setTimeout(() => setSyncStatus('idle'), 3000);
+        alert(`Sync failed: ${error.message}`);
       }
     }
   };
@@ -721,8 +754,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
 
     actionKeyRef.current = key;
-    console.log("✅ Action key set to:", actionKeyRef.current);
-    console.log("🔗 Calling handleCameraClick with:", { key, isOffline: !isOnline });
+    console.log(" Action key set to:", actionKeyRef.current);
+    console.log(" Calling handleCameraClick with:", { key, isOffline: !isOnline });
     
     handleCameraClick(key, !isOnline);
   };
@@ -871,7 +904,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     console.log("🎯 handleClockLogSubmit called");
     
     if (!currentUser || !actionKeyRef.current) {
-      console.error("❌ Missing user or action key");
+      console.error(" Missing user or action key");
       alert("Missing required data. Please try again.");
       return;
     }
@@ -900,10 +933,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         createdAt: now.toISOString()
       };
 
-      console.log("📄 Base data:", baseData);
+      console.log(" Base data:", baseData);
 
       if (isOnline) {
-        console.log("🌐 Attempting online save...");
+        console.log(" Attempting online save...");
         
         const firestoreData = {
           ...baseData,
@@ -919,7 +952,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         // Remove createdAt from Firestore data as it's not needed there
         const { createdAt, ...cleanFirestoreData } = firestoreData;
         await addDoc(collection(db, "clockLog"), cleanFirestoreData);
-        console.log("✅ Online save successful");
+        console.log("Online save successful");
         
       } else {
         console.log("📱 Attempting offline save...");
@@ -930,17 +963,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         };
 
         const localId = await offlineDB.saveAttendance(offlineData);
-        console.log("✅ Offline save successful:", localId);
+        console.log(" Offline save successful:", localId);
         
         await checkPendingItems();
         alert("You're offline. Your entry has been saved and will sync when online.");
       }
 
     } catch (mainError) {
-      console.error("❌ Main save failed:", mainError);
+      console.error(" Main save failed:", mainError);
       
       if (isOnline) {
-        console.log("🔄 Trying offline fallback...");
+        console.log(" Trying offline fallback...");
         try {
           const fallbackData = {
             uid: currentUser.uid,
@@ -1028,12 +1061,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {syncStatus === 'success' && (
             <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
-              ✅ Sync completed successfully!
+              Sync completed successfully!
             </span>
           )}
           {syncStatus === 'error' && (
             <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
-              ❌ Sync failed. Please try again.
+              Sync failed. Please try again.
             </span>
           )}
           
@@ -1071,9 +1104,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 Syncing...
               </>
             ) : syncStatus === 'success' ? (
-              <>✅ Synced</>
+              <>Synced</>
             ) : (
-              <>🔄 Sync Now</>
+              <>Sync Now</>
             )}
           </button>
         </div>
