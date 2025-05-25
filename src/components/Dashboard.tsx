@@ -919,12 +919,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       
       <h1 className={styles.Dash_title}>Dashboard</h1>
 
-      {showOfflineAlert && !isOnline && (
-        <div className={styles.OfflineAlert}>
-          <p>You are currently offline. Your attendance will be saved locally and synced when you're back online.</p>
-          <button onClick={() => setShowOfflineAlert(false)}>Dismiss</button>
-        </div>
-      )}
+  
 
       {/* Sync Button Section - Always visible */}
       <div className={styles.SyncSection} style={{
@@ -966,12 +961,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {syncStatus === 'success' && (
             <span style={{ color: '#28a745', fontSize: '14px', fontWeight: '500' }}>
-              ✅ Sync completed successfully!
+               Sync completed successfully!
             </span>
           )}
           {syncStatus === 'error' && (
             <span style={{ color: '#dc3545', fontSize: '14px', fontWeight: '500' }}>
-              ❌ Sync failed. Please try again.
+               Sync failed. Please try again.
             </span>
           )}
           
@@ -1009,9 +1004,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 Syncing...
               </>
             ) : syncStatus === 'success' ? (
-              <>✅ Synced</>
+              <> Synced</>
             ) : (
-              <>🔄 Sync Now</>
+              <> Sync Now</>
             )}
           </button>
         </div>

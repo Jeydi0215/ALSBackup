@@ -2,12 +2,69 @@ import { useState, useRef, useEffect } from "react";
 import styles from "../css/ClockModal.module.css";
 import Calendar from "../assets/calendar.png";
 import Close from "../assets/close.png";
-
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { imageDb } from "../firebase";
-
 import * as faceapi from "face-api.js";
 import { getOpenCageKey } from '../utils/apiKeys';
+
+// IndexedDB Service
+const AttendanceDB = {
+  dbName: 'AttendanceDB',
+  storeName: 'pendingLogs',
+  version: 1,
+
+  async init(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.version);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error('Failed to open database'));
+    });
+  },
+
+  async saveLog(data: any): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      const request = store.add(data);
+
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(new Error('Failed to save log'));
+    });
+  },
+
+  async getLogs(): Promise<any[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const store = tx.objectStore(this.storeName);
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(new Error('Failed to get logs'));
+    });
+  },
+
+  async deleteLog(id: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error('Failed to delete log'));
+    });
+  }
+};
 
 type Props = {
   handleCameraClick: () => void;
@@ -21,7 +78,7 @@ type Props = {
       longitude: number;
       address?: string;
     }
-  ) => void;
+  ) => Promise<void>;
 };
 
 const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) => {
@@ -30,168 +87,147 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     latitude: number;
     longitude: number;
     address?: string;
-  } | undefined>();
+  } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [syncStatus, setSyncStatus] = useState<string>(""); // For displaying sync status
+  const [syncStatus, setSyncStatus] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Network status listeners
+  // Network status
   useEffect(() => {
-    const handleOnline = () => {
-      console.log("🌐 ClockModal: Device is now ONLINE");
-      setIsOnline(true);
-      setSyncStatus("🌐 Online detected!");
+    const handleStatusChange = () => {
+      setIsOnline(navigator.onLine);
+      if (navigator.onLine) syncPendingLogs();
     };
-    
-    const handleOffline = () => {
-      console.log("🔴 ClockModal: Device is now OFFLINE");
-      setIsOnline(false);
-      setSyncStatus("🔴 Offline detected. Data will be stored locally.");
-    };
-    
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    
+
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
     };
   }, []);
 
-  // Load face-api.js models on mount
+  // Face detection models
   useEffect(() => {
     const loadModels = async () => {
       try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri("/models"); // Path to public/models
-        console.log("face-api.js models loaded");
-      } catch (err) {
-        console.error("Error loading face-api.js models:", err);
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+      } catch (error) {
+        console.error("Failed to load face models:", error);
       }
     };
     loadModels();
   }, []);
 
-  const handleLocationClick = async () => {
-    if (!shareLocation) {
+  // Camera setup
+  useEffect(() => {
+    if (!showCamera) return;
+
+    const startCamera = async () => {
       try {
-        const position = await getCurrentPosition();
-        const { latitude, longitude } = position.coords;
-        
-        // Only attempt reverse geocoding if online
-        let address: string | undefined;
-        if (navigator.onLine) {
-          address = await reverseGeocode(latitude, longitude);
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          streamRef.current = stream;
+          videoRef.current.srcObject = stream;
         }
-        
-        setLocation({
-          latitude,
-          longitude,
-          address
-        });
-        setShareLocation(true);
-        setLocationError(null);
       } catch (error) {
-        console.error("Error getting location:", error);
-        setLocationError("Failed to get location. Please check permissions.");
-        setShareLocation(false);
-        setLocation(undefined);
+        console.error("Camera error:", error);
+        alert("Camera access denied. Please enable camera permissions.");
       }
-    } else {
-      setLocation(undefined);
-      setShareLocation(false);
-    }
-  };
+    };
 
-  const getCurrentPosition = (): Promise<GeolocationPosition> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported by your browser"));
+    startCamera();
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
-      
-      navigator.geolocation.getCurrentPosition(
-        resolve,
-        (error) => reject(error),
-        { 
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    });
-  };
+    };
+  }, [showCamera]);
 
-  const reverseGeocode = async (lat: number, lng: number) => {
+  // Sync pending logs when online
+  const syncPendingLogs = async () => {
+    if (!isOnline) return;
+
     try {
-      const apiKey = await getOpenCageKey(); // Get from Realtime DB
-      
-      const response = await fetch(
-        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
-      );
-      
-      const data = await response.json();
-      return data.results[0]?.formatted || "Unknown location";
+      const pendingLogs = await AttendanceDB.getLogs();
+      if (pendingLogs.length === 0) return;
+
+      setSyncStatus(`Syncing ${pendingLogs.length} pending attendance records...`);
+
+      for (const log of pendingLogs) {
+        try {
+          const imageUrl = await uploadToFirebase(log.image);
+          await onSubmitClockLog(
+            log.image,
+            log.timestamp,
+            imageUrl,
+            log.location
+          );
+          await AttendanceDB.deleteLog(log.id);
+        } catch (error) {
+          console.error("Failed to sync log:", error);
+        }
+      }
+
+      setSyncStatus("All pending records synced successfully!");
     } catch (error) {
-      console.error("Geocoding failed:", error);
-      return "Location lookup failed";
+      console.error("Sync error:", error);
+      setSyncStatus("Failed to sync some records");
+    } finally {
+      setTimeout(() => setSyncStatus(""), 3000);
     }
   };
 
   const takePhoto = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    if (canvas && video) {
-      const ctx = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const image = canvas.toDataURL("image/png");
-      setCapturedImage(image);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
+    if (!canvas || !video) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setCapturedImage(canvas.toDataURL("image/png"));
+    
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
   };
 
   const handleRetake = () => {
     setCapturedImage(null);
-    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    });
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch(error => {
+        console.error("Camera error:", error);
+        alert("Failed to access camera. Please refresh the page.");
+      });
   };
 
-  const uploadToFirebase = async (imageDataUrl: string): Promise<string> => {
-    try {
-      const today = new Date();
-      const dateFolder = today.toISOString().split("T")[0];
-      const timestamp = today.getTime();
-      const fileName = `time-ins/${dateFolder}/user_${timestamp}.png`;
-      const storageRef = ref(imageDb, fileName);
-      const base64Data = imageDataUrl.split(",")[1];
-      await uploadString(storageRef, base64Data, "base64");
-      const downloadUrl = await getDownloadURL(storageRef);
-      console.log("Image uploaded successfully to:", fileName);
-      return downloadUrl;
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      throw error;
-    }
+  const uploadToFirebase = async (imageData: string): Promise<string> => {
+    const timestamp = Date.now();
+    const dateFolder = new Date().toISOString().split("T")[0];
+    const storageRef = ref(imageDb, `time-ins/${dateFolder}/user_${timestamp}.png`);
+    const base64Data = imageData.split(",")[1];
+    
+    await uploadString(storageRef, base64Data, "base64");
+    return await getDownloadURL(storageRef);
   };
 
-  // Detect face using face-api.js
   const detectFace = async (canvas: HTMLCanvasElement): Promise<boolean> => {
     try {
-      const detections = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions());
-      console.log("Faces detected:", detections.length);
+      const detections = await faceapi.detectAllFaces(
+        canvas, 
+        new faceapi.TinyFaceDetectorOptions()
+      );
       return detections.length > 0;
     } catch (error) {
       console.error("Face detection error:", error);
@@ -199,141 +235,123 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // SIMPLIFIED handleSubmit - Let Dashboard handle offline logic
+  const handleLocationClick = async () => {
+    if (shareLocation) {
+      setShareLocation(false);
+      setLocation(null);
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      let address = "Location acquired";
+
+      if (isOnline) {
+        try {
+          const apiKey = await getOpenCageKey();
+          const response = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${apiKey}`
+          );
+          const data = await response.json();
+          address = data.results[0]?.formatted || address;
+        } catch (error) {
+          console.error("Geocoding error:", error);
+        }
+      }
+
+      setLocation({ latitude, longitude, address });
+      setShareLocation(true);
+      setLocationError(null);
+    } catch (error) {
+      console.error("Location error:", error);
+      setLocationError("Failed to get location. Please enable location permissions.");
+      setShareLocation(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!capturedImage || !canvasRef.current) {
       alert("Please take a photo before submitting.");
       return;
     }
 
+    setIsUploading(true);
+    setSyncStatus("Processing attendance...");
+
     try {
-      setIsUploading(true);
-      setSyncStatus("Processing submission...");
-
-      console.log("🎯 ClockModal: Starting submission process");
-      console.log("🔍 ClockModal: Online status:", isOnline);
-
-      // Validate face detection
+      // Face verification
       const hasFace = await detectFace(canvasRef.current);
       if (!hasFace) {
-        alert("No face detected. Please retake the photo.");
+        alert("No face detected. Please retake photo with clear face visibility.");
         setIsUploading(false);
         setCapturedImage(null);
-        setSyncStatus("");
         return;
       }
 
-      // Create timestamp
+      // Prepare data
       const now = new Date();
       const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-      const formattedTimestamp = manilaTime.toLocaleTimeString("en-US", {
+      const timestamp = manilaTime.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true
       });
 
-      console.log("📅 ClockModal: Created timestamp:", formattedTimestamp);
+      const logData = {
+        image: capturedImage,
+        timestamp,
+        location: shareLocation ? location : null,
+        createdAt: now.toISOString()
+      };
 
-      // Prepare location data
-      const locationData = shareLocation && location ? {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        address: location.address
-      } : undefined;
-
-      console.log("📍 ClockModal: Location data:", locationData);
-
-      // Check if we're online for Firebase upload
+      // Submission flow
       if (isOnline) {
         try {
-          console.log("🌐 ClockModal: Online - attempting Firebase upload");
-          setSyncStatus("Uploading image to Firebase...");
-          
           const imageUrl = await uploadToFirebase(capturedImage);
-          console.log("✅ ClockModal: Image uploaded to Firebase:", imageUrl);
-          setSyncStatus("Image uploaded successfully!");
-          
-          // Call onSubmitClockLog with Firebase URL (Dashboard will save to Firestore)
-          console.log("📤 ClockModal: Calling onSubmitClockLog with Firebase URL");
-          onSubmitClockLog(
-            capturedImage, 
-            formattedTimestamp, 
-            imageUrl, 
-            locationData
-          );
-          
+          await onSubmitClockLog(capturedImage, timestamp, imageUrl, location);
           setSyncStatus("Attendance recorded successfully!");
-          console.log("✅ ClockModal: Submission completed successfully (online)");
-          
-        } catch (uploadError) {
-          console.error("❌ ClockModal: Firebase upload failed:", uploadError);
-          setSyncStatus("Firebase upload failed, saving offline...");
-          
-          // Firebase failed, let Dashboard handle offline save
-          console.log("🔄 ClockModal: Calling onSubmitClockLog for offline save");
-          onSubmitClockLog(
-            capturedImage, 
-            formattedTimestamp, 
-            undefined, // No Firebase URL
-            locationData
-          );
-          
-          console.log("💾 ClockModal: Submitted for offline save");
+        } catch (onlineError) {
+          console.error("Online submission failed, saving offline:", onlineError);
+          await AttendanceDB.saveLog(logData);
+          setSyncStatus("Saved offline - will sync when online");
         }
       } else {
-        console.log("📱 ClockModal: Offline - calling onSubmitClockLog for offline save");
-        setSyncStatus("Offline - saving locally...");
-        
-        // We're offline, let Dashboard handle offline save
-        onSubmitClockLog(
-          capturedImage, 
-          formattedTimestamp, 
-          undefined, // No Firebase URL when offline
-          locationData
-        );
-        
-        setSyncStatus("Saved locally - will sync when online!");
-        console.log("💾 ClockModal: Submitted for offline save (offline mode)");
+        await AttendanceDB.saveLog(logData);
+        setSyncStatus("Saved offline - will sync when online");
       }
 
-      // Reset UI after successful submission
+      // Reset on success
       setCapturedImage(null);
       handleCameraClick();
-
     } catch (error) {
-      console.error("❌ ClockModal: Submit error:", error);
-      setSyncStatus(`Error: ${error}`);
-      alert("Failed to process attendance. Please try again.");
+      console.error("Submission error:", error);
+      setSyncStatus("Failed to submit attendance");
+      alert("An error occurred. Please try again.");
     } finally {
       setIsUploading(false);
-      // Clear status after a delay
       setTimeout(() => setSyncStatus(""), 3000);
     }
   };
-
-  useEffect(() => {
-    if (showCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-        streamRef.current = stream;
-        videoRef.current!.srcObject = stream;
-        videoRef.current!.play();
-      });
-    }
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-    };
-  }, [showCamera]);
 
   return (
     <div className={showCamera ? styles.ClockModal : styles.ClockModal2}>
       <div className={styles.ClockModal_inner}>
         <div className={styles.Head}>
-          <img onClick={handleCameraClick} className={styles.Close} src={Close} alt="Close" />
+          <img 
+            onClick={handleCameraClick} 
+            className={styles.Close} 
+            src={Close} 
+            alt="Close" 
+          />
           <div className={styles.Head_inner}>
-            <img src={Calendar} alt="Calendar Icon" />
+            <img src={Calendar} alt="Calendar" />
             <span>{new Date().toLocaleString()}</span>
           </div>
         </div>
@@ -342,17 +360,17 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           {capturedImage ? (
             <img src={capturedImage} className={styles.User} alt="Captured" />
           ) : (
-            <video 
-              ref={videoRef} 
-              className={styles.User} 
-              style={{ 
+            <video
+              ref={videoRef}
+              className={styles.User}
+              autoPlay
+              muted
+              playsInline
+              style={{
                 maxHeight: "40vh",
                 objectFit: "contain",
                 margin: "0 auto"
-              }} 
-              autoPlay 
-              muted 
-              playsInline 
+              }}
             />
           )}
           <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -360,9 +378,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {shareLocation && location && (
           <div className={styles.LocationInfo}>
-            <h4>Location Information:</h4>
-            <p>Coordinates: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</p>
-            {location.address && <p>Address: {location.address}</p>}
+            <h4>Location:</h4>
+            <p>Lat: {location.latitude.toFixed(4)}</p>
+            <p>Lng: {location.longitude.toFixed(4)}</p>
+            {location.address && <p>{location.address}</p>}
           </div>
         )}
 
@@ -374,21 +393,13 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {!isOnline && (
           <div className={styles.OfflineWarning}>
-            <p>📱 You are offline. Your attendance will be saved locally and synced when you're back online.</p>
+            <p>You are currently offline. Attendance will be saved locally.</p>
           </div>
         )}
 
         {syncStatus && (
-          <div className={styles.SyncStatus} style={{
-            padding: '8px',
-            margin: '8px 0',
-            backgroundColor: '#f8f9fa',
-            border: '1px solid #dee2e6',
-            borderRadius: '4px',
-            fontSize: '14px',
-            textAlign: 'center'
-          }}>
-            {syncStatus}
+          <div className={styles.SyncStatus}>
+            <p>{syncStatus}</p>
           </div>
         )}
 
@@ -401,14 +412,17 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             >
               {shareLocation ? "Location On" : "Location Off"}
             </button>
-            <button onClick={capturedImage ? handleRetake : takePhoto} disabled={isUploading}>
+            <button 
+              onClick={capturedImage ? handleRetake : takePhoto}
+              disabled={isUploading}
+            >
               {capturedImage ? "Retake Photo" : "Take Photo"}
             </button>
           </div>
           <button
             className={shareLocation ? styles.Submit : styles.Submit2}
             onClick={handleSubmit}
-            disabled={isUploading}
+            disabled={isUploading || !capturedImage}
           >
             {isUploading ? "Processing..." : "Submit"}
           </button>
