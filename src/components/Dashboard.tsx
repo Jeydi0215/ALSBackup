@@ -94,12 +94,12 @@ class OfflineDB {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBRequest).result;
         console.log("IndexedDB upgrade needed");
-        
+
         if (!db.objectStoreNames.contains('attendance')) {
           const attendanceStore = db.createObjectStore('attendance', { keyPath: 'localId' });
           console.log("Created attendance object store");
         }
-        
+
         if (!db.objectStoreNames.contains('syncQueue')) {
           const syncStore = db.createObjectStore('syncQueue', { keyPath: 'localId' });
           console.log("Created syncQueue object store");
@@ -110,32 +110,32 @@ class OfflineDB {
 
   async saveAttendance(data: any): Promise<string> {
     console.log("Saving attendance to IndexedDB:", data);
-    
+
     if (!this.db) {
       console.log("Database not initialized, initializing...");
       await this.init();
     }
-    
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['attendance', 'syncQueue'], 'readwrite');
       const localId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       const attendanceStore = transaction.objectStore('attendance');
       const syncStore = transaction.objectStore('syncQueue');
-      
+
       const record = { ...data, localId, status: 'pending' };
       console.log("Record to save:", record);
-      
+
       transaction.oncomplete = () => {
         console.log("IndexedDB transaction completed successfully");
         resolve(localId);
       };
-      
+
       transaction.onerror = (e) => {
         console.error("IndexedDB transaction error:", e);
         reject((e.target as IDBRequest).error);
       };
-      
+
       const attendanceRequest = attendanceStore.add(record);
       attendanceRequest.onsuccess = () => {
         console.log("Added to attendance store");
@@ -144,7 +144,7 @@ class OfflineDB {
           console.error("Error adding to sync queue:", e);
         };
       };
-      
+
       attendanceRequest.onerror = (e) => {
         console.error("Error saving attendance:", e);
       };
@@ -153,17 +153,17 @@ class OfflineDB {
 
   async getPendingSyncItems(): Promise<any[]> {
     if (!this.db) await this.init();
-    
+
     return new Promise((resolve) => {
       const transaction = this.db!.transaction('syncQueue', 'readonly');
       const store = transaction.objectStore('syncQueue');
       const request = store.getAll();
-      
+
       request.onsuccess = () => {
         console.log("Retrieved pending sync items:", request.result?.length || 0);
         resolve(request.result || []);
       };
-      
+
       request.onerror = () => {
         console.error("Error getting pending sync items");
         resolve([]);
@@ -173,22 +173,22 @@ class OfflineDB {
 
   async removeSyncedItem(localId: string): Promise<void> {
     if (!this.db) await this.init();
-    
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['attendance', 'syncQueue'], 'readwrite');
       const attendanceStore = transaction.objectStore('attendance');
       const syncStore = transaction.objectStore('syncQueue');
-      
+
       transaction.oncomplete = () => {
         console.log("Removed synced item:", localId);
         resolve();
       };
-      
+
       transaction.onerror = (e) => {
         console.error("Error removing synced item:", e);
         reject((e.target as IDBRequest).error);
       };
-      
+
       attendanceStore.delete(localId);
       syncStore.delete(localId);
     });
@@ -197,7 +197,7 @@ class OfflineDB {
   // New method to check both IndexedDB and localStorage
   async getAllPendingItems(): Promise<any[]> {
     const indexedDBItems = await this.getPendingSyncItems();
-    
+
     // Check localStorage fallback items
     const localStorageItems: any[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -240,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-  
+
   // New state for sync functionality
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [pendingCount, setPendingCount] = useState(0);
@@ -267,7 +267,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       // Get all pending items from both IndexedDB and localStorage
       const allPendingItems = await offlineDB.getAllPendingItems();
-      
+
       if (allPendingItems.length === 0) {
         console.log("No offline records to sync.");
         if (isManualSync) {
@@ -291,7 +291,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         try {
           console.log("Syncing item:", localId);
           console.log("Raw data:", rawFirebaseData);
-          
+
           // Validate required fields
           if (!rawFirebaseData.uid || !rawFirebaseData.key || !rawFirebaseData.timeString || !rawFirebaseData.date) {
             throw new Error(`Missing required fields for item ${localId}`);
@@ -299,7 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
           // Create proper Timestamp from the data
           let firestoreTime;
-          
+
           // Handle different timestamp formats
           if (rawFirebaseData.time && typeof rawFirebaseData.time === 'object' && rawFirebaseData.time.seconds) {
             // Already a Timestamp-like object
@@ -331,12 +331,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           };
 
           // Add location if it exists and is valid
-          if (rawFirebaseData.location && 
-              typeof rawFirebaseData.location.latitude === 'number' && 
-              typeof rawFirebaseData.location.longitude === 'number' &&
-              !isNaN(rawFirebaseData.location.latitude) &&
-              !isNaN(rawFirebaseData.location.longitude)) {
-            
+          if (rawFirebaseData.location &&
+            typeof rawFirebaseData.location.latitude === 'number' &&
+            typeof rawFirebaseData.location.longitude === 'number' &&
+            !isNaN(rawFirebaseData.location.latitude) &&
+            !isNaN(rawFirebaseData.location.longitude)) {
+
             cleanedData.location = {
               coordinates: new GeoPoint(rawFirebaseData.location.latitude, rawFirebaseData.location.longitude),
               address: String(rawFirebaseData.location.address || ""),
@@ -345,17 +345,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           }
 
           console.log("Cleaned data for Firebase:", cleanedData);
-          
+
           // Add to Firebase with timeout
           const docRef = await Promise.race([
             addDoc(collection(db, "clockLog"), cleanedData),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Firebase timeout')), 10000)
             )
           ]);
-          
+
           console.log("Document added with ID:", docRef.id);
-          
+
           // Remove from local storage after successful Firebase write
           if (isFromLocalStorage) {
             localStorage.removeItem(localId);
@@ -364,28 +364,28 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             await offlineDB.removeSyncedItem(localId);
             console.log(`Removed from IndexedDB: ${localId}`);
           }
-          
+
           successCount++;
-          
+
           // Small delay between operations to prevent rate limiting
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
         } catch (error) {
           console.error(`Error syncing item ${localId}:`, error);
           errors.push(`${localId}: ${error.message}`);
           errorCount++;
-          
+
           // Continue with next item instead of stopping
           continue;
         }
       }
-      
+
       console.log(`Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
-      
+
       if (errors.length > 0) {
         console.error("Sync errors:", errors);
       }
-      
+
       if (isManualSync) {
         if (errorCount === 0) {
           setSyncStatus('success');
@@ -397,10 +397,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           alert(`Sync completed with errors. ${successCount} items synced, ${errorCount} failed. Check console for details.`);
         }
       }
-      
+
       // Update pending count
       await checkPendingItems();
-      
+
     } catch (error) {
       console.error("Error during offline sync:", error);
       if (isManualSync) {
@@ -417,12 +417,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       alert("You are currently offline. Please check your internet connection and try again.");
       return;
     }
-    
+
     if (syncStatus === 'syncing') {
       console.log("⚠️ Sync already in progress");
       return; // Prevent multiple sync attempts
     }
-    
+
     console.log("🔄 Manual sync triggered");
     await syncPendingData(true);
   };
@@ -437,7 +437,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         syncPendingData();
       }, 1000);
     };
-    
+
     const handleOffline = () => {
       console.log("📱 Connection lost - going offline");
       setIsOnline(false);
@@ -449,7 +449,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
     // Initial setup
     console.log("🚀 Dashboard mounted, initializing...");
-    
+
     // Initialize IndexedDB and check pending items
     offlineDB.init().then(() => {
       checkPendingItems();
@@ -594,104 +594,104 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   }, [currentUser]);
 
   useEffect(() => {
-  if (!currentUser) return;
+    if (!currentUser) return;
 
-  const q = currentUser.admin
-    ? query(
+    const q = currentUser.admin
+      ? query(
         collection(db, "clockLog"),
         where("status", "==", "pending"),
         orderBy("time", "desc")
       )
-    : query(
+      : query(
         collection(db, "clockLog"),
         where("uid", "==", currentUser.uid),
         orderBy("time", "desc")
       );
 
-  const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-    const logs = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ClockLogEntry[];
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      const logs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ClockLogEntry[];
 
-    setClockLog(logs);
+      setClockLog(logs);
 
-    if (!currentUser.admin) {
-      const today = new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "2-digit",
-        year: "numeric"
-      });
+      if (!currentUser.admin) {
+        const today = new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "2-digit",
+          year: "numeric"
+        });
 
-      const newTimestamps = {
-        clockIn: "-",
-        breakIn: "-",
-        breakOut: "-",
-        clockOut: "-"
-      };
+        const newTimestamps = {
+          clockIn: "-",
+          breakIn: "-",
+          breakOut: "-",
+          clockOut: "-"
+        };
 
-      const todayLogs = logs.filter(log => log.date === today);
+        const todayLogs = logs.filter(log => log.date === today);
 
-      todayLogs.forEach(log => {
-        let timeStr = log.timeString;
+        todayLogs.forEach(log => {
+          let timeStr = log.timeString;
 
-        // Adjust clock-in before 8:00 AM
-        if (log.key === "clockIn" && parseTimeToMinutes(timeStr) < 8 * 60) {
-          timeStr = "8:00 AM (auto)";
-        }
+          // Adjust clock-in before 8:00 AM
+          if (log.key === "clockIn" && parseTimeToMinutes(timeStr) < 8 * 60) {
+            timeStr = "8:00 AM (auto)";
+          }
 
-        // Adjust clock-out between 5:00 PM and 8:00 PM
-        if (
-          log.key === "clockOut" &&
-          parseTimeToMinutes(timeStr) >= 17 * 60 &&
-          parseTimeToMinutes(timeStr) < 20 * 60
-        ) {
-          timeStr = "5:00 PM (auto)";
-        }
+          // Adjust clock-out between 5:00 PM and 8:00 PM
+          if (
+            log.key === "clockOut" &&
+            parseTimeToMinutes(timeStr) >= 17 * 60 &&
+            parseTimeToMinutes(timeStr) < 20 * 60
+          ) {
+            timeStr = "5:00 PM (auto)";
+          }
 
-        if (log.key && newTimestamps[log.key] === "-") {
-          newTimestamps[log.key] = timeStr;
-        }
-      });
+          if (log.key && newTimestamps[log.key] === "-") {
+            newTimestamps[log.key] = timeStr;
+          }
+        });
 
-      setTimestamps(newTimestamps);
+        setTimestamps(newTimestamps);
 
-      // Handle missed 8PM clock-out
-      const hasClockIn = todayLogs.some(log => log.key === "clockIn");
-      const hasClockOut = todayLogs.some(log => log.key === "clockOut");
-      const now = new Date();
-      const isAfter8PM = now.getHours() >= 20;
+        // Handle missed 8PM clock-out
+        const hasClockIn = todayLogs.some(log => log.key === "clockIn");
+        const hasClockOut = todayLogs.some(log => log.key === "clockOut");
+        const now = new Date();
+        const isAfter8PM = now.getHours() >= 20;
 
-      if (hasClockIn && !hasClockOut && isAfter8PM && !isProcessing) {
-        setIsProcessing(true);
-        try {
-          await addDoc(collection(db, "clockLog"), {
-            uid: currentUser.uid,
-            key: "clockOut",
-            time: null,
-            timeString: "NULL (Missed 8PM)",
-            date: today,
-            status: "pending",
-            imageUrl: "",
-            location: "",
-            userFirstName: userData?.firstName,
-            userSurname: userData?.surname,
-            isAuto: true,
-            notes: "Missed 8:00 PM clock-out cutoff"
-          });
-        } catch (err) {
-          console.error("Auto clock-out failed:", err);
-        } finally {
-          setIsProcessing(false);
+        if (hasClockIn && !hasClockOut && isAfter8PM && !isProcessing) {
+          setIsProcessing(true);
+          try {
+            await addDoc(collection(db, "clockLog"), {
+              uid: currentUser.uid,
+              key: "clockOut",
+              time: null,
+              timeString: "NULL (Missed 8PM)",
+              date: today,
+              status: "pending",
+              imageUrl: "",
+              location: "",
+              userFirstName: userData?.firstName,
+              userSurname: userData?.surname,
+              isAuto: true,
+              notes: "Missed 8:00 PM clock-out cutoff"
+            });
+          } catch (err) {
+            console.error("Auto clock-out failed:", err);
+          } finally {
+            setIsProcessing(false);
+          }
         }
       }
-    }
-  }, (error) => {
-    console.error("Error fetching logs:", error);
-  });
+    }, (error) => {
+      console.error("Error fetching logs:", error);
+    });
 
-  return () => unsubscribe();
-}, [currentUser, isProcessing, userData]); 
+    return () => unsubscribe();
+  }, [currentUser, isProcessing, userData]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -770,7 +770,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     actionKeyRef.current = key;
     console.log(" Action key set to:", actionKeyRef.current);
     console.log(" Calling handleCameraClick with:", { key, isOffline: !isOnline });
-    
+
     handleCameraClick(key, !isOnline);
   };
 
@@ -793,8 +793,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       if (logDateObj < sevenDaysAgo || logDateObj > now) return;
 
-      const groupKey = currentUser?.admin 
-        ? `${log.uid}_${logDateStr}` 
+      const groupKey = currentUser?.admin
+        ? `${log.uid}_${logDateStr}`
         : logDateStr;
 
       if (!dates[groupKey]) {
@@ -803,7 +803,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           workingHours: "",
           userId: log.uid,
           logIds: [],
-          employeeName: currentUser?.admin 
+          employeeName: currentUser?.admin
             ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
             : undefined,
           isComplete: false,
@@ -812,7 +812,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       }
 
       dates[groupKey].logIds.push(log.id);
-      
+
       if (!dates[groupKey][log.key]) {
         dates[groupKey][log.key] = log.timeString;
       }
@@ -827,171 +827,181 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         day.breakOut || "",
         day.clockOut || ""
       );
-      
+
       day.isComplete = !!day.clockIn && !!day.clockOut;
     });
 
-    return Object.values(dates).sort((a, b) => 
+    return Object.values(dates).sort((a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   };
 
   const calculateUndertime = (entry: WeeklyReportDay): string => {
-  const parseMinutes = (t: string): number => {
-    const [h, mPart] = t.replace("AM", "").replace("PM", "").trim().split(":");
-    const m = parseInt(mPart || "0");
-    let hour = parseInt(h || "0");
+    const parseMinutes = (t: string): number => {
+      const [h, mPart] = t.replace("AM", "").replace("PM", "").trim().split(":");
+      const m = parseInt(mPart || "0");
+      let hour = parseInt(h || "0");
 
-    const isPM = /PM/i.test(t);
-    if (isPM && hour < 12) hour += 12;
-    if (!isPM && hour === 12) hour = 0;
+      const isPM = /PM/i.test(t);
+      if (isPM && hour < 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
 
-    return hour * 60 + m;
+      return hour * 60 + m;
+    };
+
+    if (!entry.clockIn || !entry.clockOut) return "-";
+
+    const start = parseMinutes(entry.clockIn);
+    const end = parseMinutes(entry.clockOut);
+
+    let worked = end - start;
+
+    if (entry.breakIn && entry.breakOut) {
+      worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
+    }
+
+    const expected = 8 * 60;
+    const undertime = expected - worked;
+
+    if (undertime <= 0) return "-";
+
+    const hours = Math.floor(undertime / 60);
+    const minutes = undertime % 60;
+    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
   };
-
-  if (!entry.clockIn || !entry.clockOut) return "-";
-
-  const start = parseMinutes(entry.clockIn);
-  const end = parseMinutes(entry.clockOut);
-
-  let worked = end - start;
-
-  if (entry.breakIn && entry.breakOut) {
-    worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
-  }
-
-  const expected = 8 * 60;
-  const undertime = expected - worked;
-
-  if (undertime <= 0) return "-";
-
-  const hours = Math.floor(undertime / 60);
-  const minutes = undertime % 60;
-  return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
-};
 
 
   const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
-  const logs = [...clockLog]; // all logs from Firestore
-  const monthlyGrouped: Record<string, WeeklyReportDay[]> = {};
+    const logs = [...clockLog]; // all logs from Firestore
+    const monthlyGrouped: Record<string, WeeklyReportDay[]> = {};
 
-  const logsByDate: Record<string, WeeklyReportDay> = {};
+    const logsByDate: Record<string, WeeklyReportDay> = {};
 
-  logs.forEach(log => {
-    if (!log.time || !log.key || !log.timeString) return;
+    logs.forEach(log => {
+      if (!log.time || !log.key || !log.timeString) return;
 
-    const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
-    const fullDateStr = logDateObj.toLocaleDateString("en-US", {
-      month: "long",
-      day: "2-digit",
-      year: "numeric",
+      const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+      const fullDateStr = logDateObj.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+      });
+
+      const monthKey = logDateObj.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric"
+      });
+
+      const groupKey = currentUser?.admin
+        ? `${log.uid}_${fullDateStr}`
+        : fullDateStr;
+
+      if (!logsByDate[groupKey]) {
+        logsByDate[groupKey] = {
+          date: fullDateStr,
+          workingHours: "",
+          userId: log.uid,
+          logIds: [],
+          employeeName: currentUser?.admin
+            ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
+            : undefined,
+          isComplete: false,
+          hasPending: true
+        };
+      }
+
+      logsByDate[groupKey].logIds.push(log.id);
+      if (!logsByDate[groupKey][log.key]) {
+        logsByDate[groupKey][log.key] = log.timeString;
+      }
+      logsByDate[groupKey].status = log.status;
     });
 
-    const monthKey = logDateObj.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric"
+    Object.values(logsByDate).forEach(entry => {
+      entry.workingHours = calculateWorkingHours(
+        entry.clockIn || "",
+        entry.breakIn || "",
+        entry.breakOut || "",
+        entry.clockOut || ""
+      );
+      entry.isComplete = !!entry.clockIn && !!entry.clockOut;
+
+      const dateObj = new Date(entry.date);
+      const monthKey = dateObj.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric"
+      });
+
+      if (!monthlyGrouped[monthKey]) {
+        monthlyGrouped[monthKey] = [];
+      }
+
+      monthlyGrouped[monthKey].push(entry);
     });
 
-    const groupKey = currentUser?.admin 
-      ? `${log.uid}_${fullDateStr}` 
-      : fullDateStr;
+    return monthlyGrouped;
+  };
 
-    if (!logsByDate[groupKey]) {
-      logsByDate[groupKey] = {
-        date: fullDateStr,
-        workingHours: "",
-        userId: log.uid,
-        logIds: [],
-        employeeName: currentUser?.admin
-          ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
-          : undefined,
-        isComplete: false,
-        hasPending: true
-      };
-    }
+  const availableMonths = Object.keys(getMonthlyGroupedLogs());
 
-    logsByDate[groupKey].logIds.push(log.id);
-    if (!logsByDate[groupKey][log.key]) {
-      logsByDate[groupKey][log.key] = log.timeString;
-    }
-    logsByDate[groupKey].status = log.status;
-  });
 
-  Object.values(logsByDate).forEach(entry => {
-    entry.workingHours = calculateWorkingHours(
-      entry.clockIn || "",
-      entry.breakIn || "",
-      entry.breakOut || "",
-      entry.clockOut || ""
-    );
-    entry.isComplete = !!entry.clockIn && !!entry.clockOut;
-
-    const dateObj = new Date(entry.date);
-    const monthKey = dateObj.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric"
+  const generateDTRHtml = (
+    name: string,
+    position: string,
+    office: string,
+    logs: WeeklyReportDay[],
+    month: string,
+    holidayMap: Record<string, string>
+  ): string => {
+    const logMap: Record<number, WeeklyReportDay> = {};
+    logs.forEach(log => {
+      const date = new Date(log.date);
+      logMap[date.getDate()] = log;
     });
 
-    if (!monthlyGrouped[monthKey]) {
-      monthlyGrouped[monthKey] = [];
-    }
+    const [monthName, yearStr] = month.split(" ");
+    const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
+    const year = parseInt(yearStr, 10);
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-    monthlyGrouped[monthKey].push(entry);
-  });
+    const rows = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const dateObj = new Date(year, monthIndex, day);
+      const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+      const log = logMap[day];
+      const readableDate = dateObj.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+      });
 
-  return monthlyGrouped;
-};
+      const isSunday = dateObj.getDay() === 0;
+      const isHoliday = holidayMap[dateStr];
 
-const availableMonths = Object.keys(getMonthlyGroupedLogs());
+      const isFutureDate = dateObj > new Date();
+
+      const rowStyle = isHoliday
+        ? 'style="background-color: #ffdede;"'
+        : isSunday
+          ? 'style="background-color: #f0f0f0;"'
+          : isFutureDate
+            ? ''
+            : log
+              ? ''
+              : 'style="background-color: #fff8dc;"'; // Yellow for absent
 
 
-const generateDTRHtml = (
-  name: string,
-  position: string,
-  office: string,
-  logs: WeeklyReportDay[],
-  month: string,
-  holidayMap: Record<string, string>
-): string => {
-  const logMap: Record<number, WeeklyReportDay> = {};
-  logs.forEach(log => {
-    const date = new Date(log.date);
-    logMap[date.getDate()] = log;
-  });
+      const notes = isHoliday
+        ? holidayMap[dateStr]
+        : isSunday
+          ? "Sunday"
+          : isFutureDate
+            ? "—"
+            : log
+              ? ""
+              : "Absent";
 
-  const [monthName, yearStr] = month.split(" ");
-  const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
-  const year = parseInt(yearStr, 10);
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-  const rows = Array.from({ length: daysInMonth }, (_, i) => {
-    const day = i + 1;
-    const dateObj = new Date(year, monthIndex, day);
-    const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
-    const log = logMap[day];
-    const readableDate = dateObj.toLocaleDateString("en-US", {
-      month: "long",
-      day: "2-digit",
-    });
-
-    const isSunday = dateObj.getDay() === 0;
-    const isHoliday = holidayMap[dateStr];
-
-    const rowStyle = isHoliday
-      ? 'style="background-color: #ffdede;"'
-      : isSunday
-        ? 'style="background-color: #f0f0f0;"'
-        : log ? '' : 'style="background-color: #fff8dc;"'; // Yellow for absent
-
-    const notes = isHoliday
-      ? holidayMap[dateStr]
-      : isSunday
-        ? "Sunday"
-        : log
-          ? ""
-          : "Absent";
-
-    return `
+      return `
       <tr ${rowStyle}>
         <td>${readableDate}</td>
         <td>${log?.clockIn || "-"}</td>
@@ -1000,9 +1010,9 @@ const generateDTRHtml = (
         <td>${log?.clockOut || "-"}</td>
         <td>${notes || calculateUndertime(log)}</td>
       </tr>`;
-  }).join("");
+    }).join("");
 
-  return `
+    return `
   <div class="DTR">
     <div class="Civil">
       <span>Civil Service Form No. 48</span>
@@ -1065,85 +1075,90 @@ const generateDTRHtml = (
       </div>
     </div>
   </div>`;
-};
+  };
 
-const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
-  const res = await fetch("https://date.nager.at/api/v3/PublicHolidays/2025/PH");
-  const data = await res.json();
+  const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
+    const res = await fetch("https://date.nager.at/api/v3/PublicHolidays/2025/PH");
+    const data = await res.json();
 
-  // Return as map: { "2025-01-01": "New Year's Day", ... }
-  const holidayMap: Record<string, string> = {};
-  data.forEach((item: any) => {
-    holidayMap[item.date] = item.localName;
-  });
+    // Return as map: { "2025-01-01": "New Year's Day", ... }
+    const holidayMap: Record<string, string> = {};
+    data.forEach((item: any) => {
+      holidayMap[item.date] = item.localName;
+    });
 
-  return holidayMap;
-};
+    return holidayMap;
+  };
 
 
 
-const exportToPDF = async () => {
-  const holidayMap = await fetchPhilippineHolidays();
-  const logsByMonth = getMonthlyGroupedLogs();
-  const wrapper = document.createElement("div");
+  const exportToPDF = async () => {
+    const holidayMap = await fetchPhilippineHolidays();
+    const logsByMonth = getMonthlyGroupedLogs();
+    const wrapper = document.createElement("div");
 
-  Object.entries(logsByMonth).forEach(([month, logs]) => {
+    Object.entries(logsByMonth).forEach(([month, logs]) => {
+      const html = generateDTRHtml(
+        `${userData?.firstName} ${userData?.surname}`,
+        "Position Here",
+        "Office Name Here",
+        logs,
+        month,
+        holidayMap
+      );
+
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      wrapper.appendChild(div);
+    });
+
+    // Add CSS
+    const style = document.createElement("style");
+    style.innerHTML = dtrStyles;
+    wrapper.prepend(style);
+
+    html2pdf()
+      .set({ filename: "DTR.pdf", html2canvas: { scale: 2 } })
+      .from(wrapper)
+      .save();
+  };
+
+  const handleExportSingleMonth = async () => {
+    if (!selectedMonth) return;
+
+    const holidayMap = await fetchPhilippineHolidays();
+    const monthlyData = getMonthlyGroupedLogs();
+    const logs = monthlyData[selectedMonth];
+    if (!logs) return;
+
+    const wrapper = document.createElement("div");
     const html = generateDTRHtml(
       `${userData?.firstName} ${userData?.surname}`,
-      "Position Here",
-      "Office Name Here",
+      "Your Position",
+      "Your Office",
       logs,
-      month,
+      selectedMonth,
       holidayMap
     );
 
     const div = document.createElement("div");
     div.innerHTML = html;
     wrapper.appendChild(div);
-  });
 
-  // Add CSS
-  const style = document.createElement("style");
-  style.innerHTML = dtrStyles;
-  wrapper.prepend(style);
+    const style = document.createElement("style");
+    style.innerHTML = dtrStyles;
+    wrapper.prepend(style);
 
-  html2pdf()
-    .set({ filename: "DTR.pdf", html2canvas: { scale: 2 } })
-    .from(wrapper)
-    .save();
-};
+    html2pdf()
+  .set({
+    filename: `DTR_${selectedMonth}.pdf`,
+    html2canvas: { scale: 1.5 }, // try lowering this
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+  })
+  .from(wrapper)
+  .save();
 
-const handleExportSingleMonth = async () => {
-  if (!selectedMonth) return;
-
-  const holidayMap = await fetchPhilippineHolidays();
-  const monthlyData = getMonthlyGroupedLogs();
-  const logs = monthlyData[selectedMonth];
-  if (!logs) return;
-
-  const wrapper = document.createElement("div");
-  const html = generateDTRHtml(
-    `${userData?.firstName} ${userData?.surname}`,
-    "Your Position",
-    "Your Office",
-    logs,
-    selectedMonth,
-    holidayMap
-  );
-
-  const div = document.createElement("div");
-  div.innerHTML = html;
-  wrapper.appendChild(div);
-
-  const style = document.createElement("style");
-  style.innerHTML = dtrStyles;
-  wrapper.prepend(style);
-
-  html2pdf()
-    .set({ filename: `DTR_${selectedMonth}.pdf`, html2canvas: { scale: 2 } })
-    .from(wrapper)
-    .save();
-};
+  };
 
 
 
@@ -1227,7 +1242,7 @@ const handleExportSingleMonth = async () => {
     }
   ) => {
     console.log("🎯 handleClockLogSubmit called");
-    
+
     if (!currentUser || !actionKeyRef.current) {
       console.error(" Missing user or action key");
       alert("Missing required data. Please try again.");
@@ -1262,7 +1277,7 @@ const handleExportSingleMonth = async () => {
 
       if (isOnline) {
         console.log(" Attempting online save...");
-        
+
         const firestoreData = {
           ...baseData,
           ...(location && location.latitude && location.longitude ? {
@@ -1278,10 +1293,10 @@ const handleExportSingleMonth = async () => {
         const { createdAt, ...cleanFirestoreData } = firestoreData;
         await addDoc(collection(db, "clockLog"), cleanFirestoreData);
         console.log("Online save successful");
-        
+
       } else {
         console.log("📱 Attempting offline save...");
-        
+
         const offlineData = {
           ...baseData,
           ...(location ? { location } : {})
@@ -1289,14 +1304,14 @@ const handleExportSingleMonth = async () => {
 
         const localId = await offlineDB.saveAttendance(offlineData);
         console.log(" Offline save successful:", localId);
-        
+
         await checkPendingItems();
         alert("You're offline. Your entry has been saved and will sync when online.");
       }
 
     } catch (mainError) {
       console.error(" Main save failed:", mainError);
-      
+
       if (isOnline) {
         console.log(" Trying offline fallback...");
         try {
@@ -1322,7 +1337,7 @@ const handleExportSingleMonth = async () => {
           console.log("✅ Fallback save successful:", localId);
           await checkPendingItems();
           alert("Network error. Saved offline - will sync when connection restored.");
-          
+
         } catch (fallbackError) {
           console.error("❌ Fallback also failed:", fallbackError);
           alert("Failed to save entry. Please try again.");
@@ -1343,7 +1358,7 @@ const handleExportSingleMonth = async () => {
           100% { transform: rotate(360deg); }
         }
       `}</style>
-      
+
       <h1 className={styles.Dash_title}>Dashboard</h1>
 
       {/* Sync Button Section - Always visible */}
@@ -1394,14 +1409,14 @@ const handleExportSingleMonth = async () => {
               Sync failed. Please try again.
             </span>
           )}
-          
+
           <button
             onClick={handleManualSync}
             disabled={!isOnline || syncStatus === 'syncing'}
             style={{
-              background: syncStatus === 'syncing' ? '#6c757d' : 
-                         syncStatus === 'success' ? '#28a745' : 
-                         isOnline ? '#007bff' : '#6c757d',
+              background: syncStatus === 'syncing' ? '#6c757d' :
+                syncStatus === 'success' ? '#28a745' :
+                  isOnline ? '#007bff' : '#6c757d',
               color: 'white',
               border: 'none',
               padding: '8px 16px',
@@ -1486,7 +1501,7 @@ const handleExportSingleMonth = async () => {
           </div>
         </div>
       )}
-      
+
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
           <span className={styles.ReportText}>
@@ -1502,39 +1517,39 @@ const handleExportSingleMonth = async () => {
             </button>
             )} */}
             {!currentUser?.admin && (
-            <div style={{ margin: "1rem 0" }}>
-  <label htmlFor="monthSelect" style={{ marginRight: "10px", fontWeight: "600" }}>
-    Select Month:
-  </label>
-  <select
-    id="monthSelect"
-    value={selectedMonth}
-    onChange={(e) => setSelectedMonth(e.target.value)}
-    style={{ padding: "6px 10px", fontSize: "14px" }}
-  >
-    <option value="">-- Choose a Month --</option>
-    {Object.keys(getMonthlyGroupedLogs()).map(month => (
-      <option key={month} value={month}>{month}</option>
-    ))}
-  </select>
+              <div style={{ margin: "1rem 0" }}>
+                <label htmlFor="monthSelect" style={{ marginRight: "10px", fontWeight: "600" }}>
+                  Select Month:
+                </label>
+                <select
+                  id="monthSelect"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ padding: "6px 10px", fontSize: "14px" }}
+                >
+                  <option value="">-- Choose a Month --</option>
+                  {Object.keys(getMonthlyGroupedLogs()).map(month => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
 
-  <button
-    onClick={handleExportSingleMonth}
-    disabled={!selectedMonth}
-    style={{
-      marginLeft: "10px",
-      padding: "6px 12px",
-      backgroundColor: "#007bff",
-      color: "#fff",
-      border: "none",
-      borderRadius: "4px",
-      cursor: selectedMonth ? "pointer" : "not-allowed"
-    }}
-  >
-    Export PDF
-  </button>
-</div>
-)}
+                <button
+                  onClick={handleExportSingleMonth}
+                  disabled={!selectedMonth}
+                  style={{
+                    marginLeft: "10px",
+                    padding: "6px 12px",
+                    backgroundColor: "#007bff",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: selectedMonth ? "pointer" : "not-allowed"
+                  }}
+                >
+                  Export PDF
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1542,31 +1557,31 @@ const handleExportSingleMonth = async () => {
           <div className={styles.WeeklyTable}>
             <div className={styles.Clock_day}>
               <div className={styles.Clock_morning}>
-              <h2>Morning:</h2>
-              <table>
-                <thead>
-                  <tr>
-                    {currentUser?.admin && <th>Employee</th>}
-                    <th>Date</th>
-                    <th>Clock In</th>
-                    <th>Clock Out</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeklyReportData.map((entry, index) => {
-                    const employeeName = entry.employeeName || "Unknown User";
+                <h2>Morning:</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      {currentUser?.admin && <th>Employee</th>}
+                      <th>Date</th>
+                      <th>Clock In</th>
+                      <th>Clock Out</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyReportData.map((entry, index) => {
+                      const employeeName = entry.employeeName || "Unknown User";
 
-                    return (
-                      <tr key={index}>
-                        {currentUser?.admin && <td>{employeeName}</td>}
-                        <td>{entry.date}</td>
-                        <td>{entry.clockIn || "-"}</td>
-                        <td>{entry.breakIn || "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      return (
+                        <tr key={index}>
+                          {currentUser?.admin && <td>{employeeName}</td>}
+                          <td>{entry.date}</td>
+                          <td>{entry.clockIn || "-"}</td>
+                          <td>{entry.breakIn || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <div className={styles.Clock_afternoon}>
@@ -1587,9 +1602,9 @@ const handleExportSingleMonth = async () => {
                       const statusStyle = {
                         color:
                           entry.status === 'approved' ? 'green' :
-                          entry.status === 'rejected' ? 'red' :
-                          entry.status === 'pending'  ? 'orange' :
-                          'inherit'
+                            entry.status === 'rejected' ? 'red' :
+                              entry.status === 'pending' ? 'orange' :
+                                'inherit'
                       };
 
                       return (
@@ -1606,7 +1621,7 @@ const handleExportSingleMonth = async () => {
               </div>
             </div>
 
-            
+
 
 
             <div style={{
