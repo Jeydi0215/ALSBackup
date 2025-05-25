@@ -149,12 +149,51 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     };
   }, [showCamera]);
 
+  // Sync localStorage fallback records
+  const syncLocalStorageFallback = async () => {
+    if (!isOnline) return;
+
+    try {
+      // Check for fallback records in localStorage
+      const fallbackKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('attendance_')
+      );
+
+      if (fallbackKeys.length > 0) {
+        setSyncStatus(`Syncing ${fallbackKeys.length} fallback records...`);
+        
+        for (const key of fallbackKeys) {
+          try {
+            const logData = JSON.parse(localStorage.getItem(key) || '{}');
+            const imageUrl = await uploadToFirebase(logData.image);
+            await onSubmitClockLog(
+              logData.image,
+              logData.timestamp,
+              imageUrl,
+              logData.location
+            );
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error(`Failed to sync fallback record ${key}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Fallback sync error:", error);
+    }
+  };
+
   // Sync pending logs when online
   const syncPendingLogs = async () => {
     if (!isOnline) return;
 
     try {
+      // Sync IndexedDB records
       const pendingLogs = await AttendanceDB.getLogs();
+      
+      // Also sync localStorage fallback records
+      await syncLocalStorageFallback();
+      
       if (pendingLogs.length === 0) return;
 
       setSyncStatus(`Syncing ${pendingLogs.length} pending attendance records...`);
@@ -239,6 +278,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     if (shareLocation) {
       setShareLocation(false);
       setLocation(null);
+      setLocationError(null);
       return;
     }
 
@@ -246,32 +286,53 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 10000
+          timeout: 10000,
+          maximumAge: 300000 // Accept cached location up to 5 minutes old
         });
       });
 
       const { latitude, longitude } = position.coords;
       let address = "Location acquired";
 
+      // Only try geocoding if online
       if (isOnline) {
         try {
           const apiKey = await getOpenCageKey();
           const response = await fetch(
-            `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${apiKey}`
+            `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${apiKey}`,
+            { 
+              signal: AbortSignal.timeout(5000) // 5 second timeout
+            }
           );
-          const data = await response.json();
-          address = data.results[0]?.formatted || address;
-        } catch (error) {
-          console.error("Geocoding error:", error);
+          
+          if (response.ok) {
+            const data = await response.json();
+            address = data.results[0]?.formatted || address;
+          }
+        } catch (geocodingError) {
+          console.warn("Geocoding failed, using coordinates only:", geocodingError);
+          // Don't throw error, just use default address
         }
+      } else {
+        address = "Location acquired (offline)";
       }
 
       setLocation({ latitude, longitude, address });
       setShareLocation(true);
       setLocationError(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Location error:", error);
-      setLocationError("Failed to get location. Please enable location permissions.");
+      let errorMessage = "Failed to get location.";
+      
+      if (error.code === 1) {
+        errorMessage = "Location access denied. Please enable location permissions.";
+      } else if (error.code === 2) {
+        errorMessage = "Location unavailable. Please try again.";
+      } else if (error.code === 3) {
+        errorMessage = "Location request timed out. Please try again.";
+      }
+      
+      setLocationError(errorMessage);
       setShareLocation(false);
     }
   };
@@ -286,13 +347,22 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     setSyncStatus("Processing attendance...");
 
     try {
-      // Face verification
-      const hasFace = await detectFace(canvasRef.current);
-      if (!hasFace) {
-        alert("No face detected. Please retake photo with clear face visibility.");
-        setIsUploading(false);
-        setCapturedImage(null);
-        return;
+      // Face verification - skip if offline and models not loaded
+      let hasFace = true; // Default to true for offline mode
+      
+      if (isOnline) {
+        try {
+          hasFace = await detectFace(canvasRef.current);
+          if (!hasFace) {
+            alert("No face detected. Please retake photo with clear face visibility.");
+            setIsUploading(false);
+            setCapturedImage(null);
+            return;
+          }
+        } catch (faceDetectionError) {
+          console.warn("Face detection failed, proceeding anyway:", faceDetectionError);
+          // Continue with submission even if face detection fails
+        }
       }
 
       // Prepare data
@@ -315,25 +385,46 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       if (isOnline) {
         try {
           const imageUrl = await uploadToFirebase(capturedImage);
-          await onSubmitClockLog(capturedImage, timestamp, imageUrl, location);
+          await onSubmitClockLog(capturedImage, timestamp, imageUrl, shareLocation ? location : undefined);
           setSyncStatus("Attendance recorded successfully!");
         } catch (onlineError) {
           console.error("Online submission failed, saving offline:", onlineError);
-          await AttendanceDB.saveLog(logData);
-          setSyncStatus("Saved offline - will sync when online");
+          try {
+            await AttendanceDB.saveLog(logData);
+            setSyncStatus("Connection failed - saved offline, will sync when online");
+          } catch (dbError) {
+            console.error("Failed to save offline:", dbError);
+            throw new Error("Failed to save attendance record");
+          }
         }
       } else {
-        await AttendanceDB.saveLog(logData);
-        setSyncStatus("Saved offline - will sync when online");
+        // Offline mode - save to IndexedDB
+        try {
+          await AttendanceDB.saveLog(logData);
+          setSyncStatus("Saved offline - will sync when online");
+          console.log("Successfully saved offline attendance record");
+        } catch (dbError) {
+          console.error("IndexedDB save failed:", dbError);
+          // Try localStorage as fallback
+          try {
+            const fallbackKey = `attendance_${Date.now()}`;
+            localStorage.setItem(fallbackKey, JSON.stringify(logData));
+            setSyncStatus("Saved locally - will sync when online");
+            console.log("Saved to localStorage as fallback");
+          } catch (storageError) {
+            console.error("All storage methods failed:", storageError);
+            throw new Error("Unable to save attendance record");
+          }
+        }
       }
 
       // Reset on success
       setCapturedImage(null);
       handleCameraClick();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Submission error:", error);
       setSyncStatus("Failed to submit attendance");
-      alert("An error occurred. Please try again.");
+      alert(`Submission failed: ${error.message || 'Please try again'}`);
     } finally {
       setIsUploading(false);
       setTimeout(() => setSyncStatus(""), 3000);
@@ -393,7 +484,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {!isOnline && (
           <div className={styles.OfflineWarning}>
-            <p>You are currently offline. Attendance will be saved locally.</p>
+            <p>🔴 You are currently offline. Attendance will be saved locally.</p>
           </div>
         )}
 
