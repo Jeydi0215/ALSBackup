@@ -238,6 +238,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   
   // New state for sync functionality
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
@@ -478,99 +480,99 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return hours * 60 + minutes;
   };
 
-  const exportToExcel = () => {
-    const weeklyData = getWeeklyReportData();
+  // const exportToExcel = () => {
+  //   const weeklyData = getWeeklyReportData();
 
-    const worksheetData = weeklyData.map((entry) => ({
-      ...(currentUser?.admin && {
-        "Employee": entry.employeeName || "Unknown User"
-      }),
-      "Date": entry.date,
-      "Clock In": entry.clockIn || "-",
-      "Break In": entry.breakIn || "-",
-      "Break Out": entry.breakOut || "-",
-      "Clock Out": entry.clockOut ||
-        (new Date().getHours() > 17 ||
-          (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
-          ? "5:00 PM (auto)"
-          : "-"),
-      "Working Hours": entry.workingHours || "-",
-      "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
-      "Notes": [
-        !entry.clockOut &&
-          (new Date().getHours() > 17 ||
-            (new Date().getHours() === 17 && new Date().getMinutes() >= 30))
-          ? "Clock-out automatically set to 5:00 PM"
-          : "",
-        entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
-          ? "Early clock-in adjusted to 8:00 AM"
-          : ""
-      ].filter(note => note).join("; ") || "Normal schedule"
-    }));
+  //   const worksheetData = weeklyData.map((entry) => ({
+  //     ...(currentUser?.admin && {
+  //       "Employee": entry.employeeName || "Unknown User"
+  //     }),
+  //     "Date": entry.date,
+  //     "Clock In": entry.clockIn || "-",
+  //     "Break In": entry.breakIn || "-",
+  //     "Break Out": entry.breakOut || "-",
+  //     "Clock Out": entry.clockOut ||
+  //       (new Date().getHours() > 17 ||
+  //         (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
+  //         ? "5:00 PM (auto)"
+  //         : "-"),
+  //     "Working Hours": entry.workingHours || "-",
+  //     "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+  //     "Notes": [
+  //       !entry.clockOut &&
+  //         (new Date().getHours() > 17 ||
+  //           (new Date().getHours() === 17 && new Date().getMinutes() >= 30))
+  //         ? "Clock-out automatically set to 5:00 PM"
+  //         : "",
+  //       entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
+  //         ? "Early clock-in adjusted to 8:00 AM"
+  //         : ""
+  //     ].filter(note => note).join("; ") || "Normal schedule"
+  //   }));
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Time Report");
+  //   const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+  //   const workbook = XLSX.utils.book_new();
+  //   XLSX.utils.book_append_sheet(workbook, worksheet, "Time Report");
 
-    const today = new Date().toISOString().split('T')[0];
-    const fileName = currentUser?.admin
-      ? `employee_time_report_${today}.xlsx`
-      : `my_time_report_${today}.xlsx`;
+  //   const today = new Date().toISOString().split('T')[0];
+  //   const fileName = currentUser?.admin
+  //     ? `employee_time_report_${today}.xlsx`
+  //     : `my_time_report_${today}.xlsx`;
 
-    XLSX.writeFile(workbook, fileName);
-  };
+  //   XLSX.writeFile(workbook, fileName);
+  // };
 
-  const exportToCSV = () => {
-    const weeklyData = getWeeklyReportData();
+  // const exportToCSV = () => {
+  //   const weeklyData = getWeeklyReportData();
 
-    const csvData = weeklyData.map((entry) => ({
-      ...(currentUser?.admin && {
-        "Employee": entry.employeeName || "Unknown User"
-      }),
-      "Date": entry.date,
-      "Clock In": entry.clockIn || "-",
-      "Break In": entry.breakIn || "-",
-      "Break Out": entry.breakOut || "-",
-      "Clock Out": entry.clockOut ||
-        (new Date().getHours() > 17 ||
-          (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
-          ? "5:00 PM (auto)"
-          : "-"),
-      "Working Hours": entry.workingHours || "-",
-      "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
-      "Notes": [
-        !entry.clockOut &&
-          (new Date().getHours() > 17 ||
-            (new Date().getHours() === 17 && new Date().getMinutes() >= 30))
-          ? "Clock-out automatically set to 5:00 PM"
-          : "",
-        entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
-          ? "Early clock-in adjusted to 8:00 AM"
-          : ""
-      ].filter(note => note).join("; ") || "Normal schedule"
-    }));
+  //   const csvData = weeklyData.map((entry) => ({
+  //     ...(currentUser?.admin && {
+  //       "Employee": entry.employeeName || "Unknown User"
+  //     }),
+  //     "Date": entry.date,
+  //     "Clock In": entry.clockIn || "-",
+  //     "Break In": entry.breakIn || "-",
+  //     "Break Out": entry.breakOut || "-",
+  //     "Clock Out": entry.clockOut ||
+  //       (new Date().getHours() > 17 ||
+  //         (new Date().getHours() === 17 && new Date().getMinutes() >= 30)
+  //         ? "5:00 PM (auto)"
+  //         : "-"),
+  //     "Working Hours": entry.workingHours || "-",
+  //     "Status": entry.status || (currentUser?.admin ? "approved" : "-"),
+  //     "Notes": [
+  //       !entry.clockOut &&
+  //         (new Date().getHours() > 17 ||
+  //           (new Date().getHours() === 17 && new Date().getMinutes() >= 30))
+  //         ? "Clock-out automatically set to 5:00 PM"
+  //         : "",
+  //       entry.clockIn && parseTimeToMinutes(entry.clockIn) < 8 * 60
+  //         ? "Early clock-in adjusted to 8:00 AM"
+  //         : ""
+  //     ].filter(note => note).join("; ") || "Normal schedule"
+  //   }));
 
-    const csv = Papa.unparse(csvData, {
-      quotes: true,
-      header: true,
-      delimiter: ","
-    });
+  //   const csv = Papa.unparse(csvData, {
+  //     quotes: true,
+  //     header: true,
+  //     delimiter: ","
+  //   });
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+  //   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  //   const url = URL.createObjectURL(blob);
 
-    const today = new Date().toISOString().split('T')[0];
-    const fileName = currentUser?.admin
-      ? `employee_time_report_${today}.csv`
-      : `my_time_report_${today}.csv`;
+  //   const today = new Date().toISOString().split('T')[0];
+  //   const fileName = currentUser?.admin
+  //     ? `employee_time_report_${today}.csv`
+  //     : `my_time_report_${today}.csv`;
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  //   const link = document.createElement("a");
+  //   link.href = url;
+  //   link.setAttribute("download", fileName);
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // };
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -834,6 +836,41 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     );
   };
 
+  const calculateUndertime = (entry: WeeklyReportDay): string => {
+  const parseMinutes = (t: string): number => {
+    const [h, mPart] = t.replace("AM", "").replace("PM", "").trim().split(":");
+    const m = parseInt(mPart || "0");
+    let hour = parseInt(h || "0");
+
+    const isPM = /PM/i.test(t);
+    if (isPM && hour < 12) hour += 12;
+    if (!isPM && hour === 12) hour = 0;
+
+    return hour * 60 + m;
+  };
+
+  if (!entry.clockIn || !entry.clockOut) return "-";
+
+  const start = parseMinutes(entry.clockIn);
+  const end = parseMinutes(entry.clockOut);
+
+  let worked = end - start;
+
+  if (entry.breakIn && entry.breakOut) {
+    worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
+  }
+
+  const expected = 8 * 60;
+  const undertime = expected - worked;
+
+  if (undertime <= 0) return "-";
+
+  const hours = Math.floor(undertime / 60);
+  const minutes = undertime % 60;
+  return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
+};
+
+
   const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
   const logs = [...clockLog]; // all logs from Firestore
   const monthlyGrouped: Record<string, WeeklyReportDay[]> = {};
@@ -905,6 +942,9 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   return monthlyGrouped;
 };
 
+const availableMonths = Object.keys(getMonthlyGroupedLogs());
+
+
 const generateDTRHtml = (
   name: string,
   position: string,
@@ -958,7 +998,7 @@ const generateDTRHtml = (
         <td>${log?.breakIn || "-"}</td>
         <td>${log?.breakOut || "-"}</td>
         <td>${log?.clockOut || "-"}</td>
-        <td>${notes || "-"}</td>
+        <td>${notes || calculateUndertime(log)}</td>
       </tr>`;
   }).join("");
 
@@ -1069,6 +1109,38 @@ const exportToPDF = async () => {
 
   html2pdf()
     .set({ filename: "DTR.pdf", html2canvas: { scale: 2 } })
+    .from(wrapper)
+    .save();
+};
+
+const handleExportSingleMonth = async () => {
+  if (!selectedMonth) return;
+
+  const holidayMap = await fetchPhilippineHolidays();
+  const monthlyData = getMonthlyGroupedLogs();
+  const logs = monthlyData[selectedMonth];
+  if (!logs) return;
+
+  const wrapper = document.createElement("div");
+  const html = generateDTRHtml(
+    `${userData?.firstName} ${userData?.surname}`,
+    "Your Position",
+    "Your Office",
+    logs,
+    selectedMonth,
+    holidayMap
+  );
+
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  wrapper.appendChild(div);
+
+  const style = document.createElement("style");
+  style.innerHTML = dtrStyles;
+  wrapper.prepend(style);
+
+  html2pdf()
+    .set({ filename: `DTR_${selectedMonth}.pdf`, html2canvas: { scale: 2 } })
     .from(wrapper)
     .save();
 };
@@ -1386,8 +1458,8 @@ const exportToPDF = async () => {
           <div className={styles.Widget_bottom}>
             {[
               { label: "Clock In", key: "clockIn" },
-              { label: "Break In", key: "breakIn" },
-              { label: "Break Out", key: "breakOut" },
+              { label: "Clock Out", key: "breakIn" },
+              { label: "Clock In", key: "breakOut" },
               { label: "Clock Out", key: "clockOut" }
             ].map(({ label, key }) => (
               <div className={styles.Clockin1} key={key}>
@@ -1424,11 +1496,45 @@ const exportToPDF = async () => {
             {/* <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
             </button> */}
-            {!currentUser?.admin && (
+            {/* {!currentUser?.admin && (
             <button onClick={exportToPDF} className={styles.ExportButton}>
               Export Monthly DTR PDF
             </button>
-            )}
+            )} */}
+            {!currentUser?.admin && (
+            <div style={{ margin: "1rem 0" }}>
+  <label htmlFor="monthSelect" style={{ marginRight: "10px", fontWeight: "600" }}>
+    Select Month:
+  </label>
+  <select
+    id="monthSelect"
+    value={selectedMonth}
+    onChange={(e) => setSelectedMonth(e.target.value)}
+    style={{ padding: "6px 10px", fontSize: "14px" }}
+  >
+    <option value="">-- Choose a Month --</option>
+    {Object.keys(getMonthlyGroupedLogs()).map(month => (
+      <option key={month} value={month}>{month}</option>
+    ))}
+  </select>
+
+  <button
+    onClick={handleExportSingleMonth}
+    disabled={!selectedMonth}
+    style={{
+      marginLeft: "10px",
+      padding: "6px 12px",
+      backgroundColor: "#007bff",
+      color: "#fff",
+      border: "none",
+      borderRadius: "4px",
+      cursor: selectedMonth ? "pointer" : "not-allowed"
+    }}
+  >
+    Export PDF
+  </button>
+</div>
+)}
           </div>
         </div>
 
@@ -1443,7 +1549,7 @@ const exportToPDF = async () => {
                     {currentUser?.admin && <th>Employee</th>}
                     <th>Date</th>
                     <th>Clock In</th>
-                    <th>Break In</th>
+                    <th>Clock Out</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1470,7 +1576,7 @@ const exportToPDF = async () => {
                     <tr>
                       {currentUser?.admin && <th>Employee</th>}
                       <th>Date</th>
-                      <th>Break Out</th>
+                      <th>Clock In</th>
                       <th>Clock Out</th>
                     </tr>
                   </thead>
