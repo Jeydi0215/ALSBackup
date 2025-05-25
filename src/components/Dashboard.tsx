@@ -1424,9 +1424,11 @@ const exportToPDF = async () => {
             {/* <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
             </button> */}
+            {!currentUser?.admin && (
             <button onClick={exportToPDF} className={styles.ExportButton}>
               Export Monthly DTR PDF
             </button>
+            )}
           </div>
         </div>
 
