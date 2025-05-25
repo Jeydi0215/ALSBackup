@@ -22,7 +22,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import html2pdf from "html2pdf.js";
 import dtrStyles from "../css/DTR.css?inline";
-import { savePendingLog, getPendingLogs, clearPendingLogs } from "../indexeddb";
+import { savePendingLog, getPendingLogs, clearPendingLogs } from "../utils/indexedDB";
 
 interface UserData {
   firstName: string;
@@ -90,8 +90,14 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   // Function to check pending items count from both sources
   const checkPendingItems = async () => {
     try {
-      // Get IndexedDB items using your functions
-      const indexedDBItems = await getPendingLogs();
+      // Get IndexedDB items using your functions with error handling
+      let indexedDBItems: any[] = [];
+      try {
+        indexedDBItems = await getPendingLogs();
+      } catch (indexedDBError) {
+        console.error("Error getting IndexedDB items:", indexedDBError);
+        // Continue with localStorage only if IndexedDB fails
+      }
       
       // Get localStorage items (Home.tsx format)
       let localStorageCount = 0;
@@ -125,8 +131,15 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         console.log("🔄 Starting manual sync...");
       }
 
-      // Get IndexedDB items using your functions
-      const indexedDBItems = await getPendingLogs();
+      // Get IndexedDB items using your functions with error handling
+      let indexedDBItems: any[] = [];
+      try {
+        indexedDBItems = await getPendingLogs();
+        console.log(`📦 IndexedDB items found: ${indexedDBItems.length}`);
+      } catch (indexedDBError) {
+        console.error("❌ Error getting IndexedDB items:", indexedDBError);
+        // Continue with localStorage only if IndexedDB fails
+      }
       
       // Get localStorage items (Home.tsx format)
       const localStorageItems: any[] = [];
@@ -151,6 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 isFromLocalStorage: true
               });
             });
+            console.log(`💾 localStorage items found: ${localStorageItems.length}`);
           } catch (error) {
             console.error("Error parsing localStorage entries:", error);
           }
@@ -187,13 +201,15 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
           // Create proper Timestamp
           let firestoreTime;
-          if (item.timestamp) {
+          if (item.isFromLocalStorage && item.timestamp) {
             // From localStorage format
             firestoreTime = Timestamp.fromDate(new Date(item.timestamp));
           } else if (item.time) {
-            // From IndexedDB format
-            if (item.time.seconds) {
+            // From IndexedDB format - handle different time formats
+            if (typeof item.time === 'object' && item.time.seconds) {
               firestoreTime = new Timestamp(item.time.seconds, item.time.nanoseconds || 0);
+            } else if (typeof item.time === 'object' && item.time._seconds) {
+              firestoreTime = new Timestamp(item.time._seconds, item.time._nanoseconds || 0);
             } else {
               firestoreTime = Timestamp.fromDate(new Date(item.time));
             }
@@ -278,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       }
 
       // Clear all IndexedDB items if we had any successful syncs from IndexedDB
-      const indexedDBSuccessCount = successCount - localStorageItems.filter(item => item.isFromLocalStorage).length;
+      const indexedDBSuccessCount = successCount - localStorageItems.length;
       if (indexedDBSuccessCount > 0) {
         try {
           await clearPendingLogs();
@@ -326,7 +342,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
     
     if (syncStatus === 'syncing') {
-      console.log(" Sync already in progress");
+      console.log("⚠️ Sync already in progress");
       return;
     }
     
@@ -1079,25 +1095,30 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       } else {
         console.log("📱 Saving offline...");
         
-        // Save to IndexedDB using your functions
-        const indexedDBData = {
-          uid: currentUser.uid,
-          key: actionKeyRef.current,
-          time: Timestamp.fromDate(manilaTime),
-          timeString: timestamp,
-          date: formattedDate,
-          status: "pending",
-          imageUrl: imageUrl || "",
-          userFirstName: userData?.firstName || "",
-          userSurname: userData?.surname || "",
-          isAuto: false,
-          notes: "",
-          createdAt: now.toISOString(),
-          ...(location ? { location } : {})
-        };
+        // Save to IndexedDB using your functions with error handling
+        try {
+          const indexedDBData = {
+            uid: currentUser.uid,
+            key: actionKeyRef.current,
+            time: Timestamp.fromDate(manilaTime),
+            timeString: timestamp,
+            date: formattedDate,
+            status: "pending",
+            imageUrl: imageUrl || "",
+            userFirstName: userData?.firstName || "",
+            userSurname: userData?.surname || "",
+            isAuto: false,
+            notes: "",
+            createdAt: now.toISOString(),
+            ...(location ? { location } : {})
+          };
 
-        await savePendingLog(indexedDBData);
-        console.log("✅ IndexedDB save successful");
+          await savePendingLog(indexedDBData);
+          console.log("✅ IndexedDB save successful");
+        } catch (indexedDBError) {
+          console.error("❌ IndexedDB save failed:", indexedDBError);
+          // Continue to localStorage even if IndexedDB fails
+        }
 
         // ALSO save to localStorage for Home.tsx compatibility
         const localStorageKey = `offline_clock_entries_${currentUser.uid}`;
@@ -1149,13 +1170,43 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             ...(location ? { location } : {})
           };
 
-          await savePendingLog(fallbackData);
-          console.log("✅ Fallback save successful");
+          // Try IndexedDB first, then localStorage
+          try {
+            await savePendingLog(fallbackData);
+            console.log("✅ Fallback IndexedDB save successful");
+          } catch (indexedDBError) {
+            console.error("❌ IndexedDB fallback failed:", indexedDBError);
+            
+            // Try localStorage as last resort
+            const localStorageKey = `offline_clock_entries_${currentUser.uid}`;
+            const existing = localStorage.getItem(localStorageKey);
+            const entries = existing ? JSON.parse(existing) : [];
+            
+            const localStorageEntry = {
+              id: `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              uid: currentUser.uid,
+              key: actionKeyRef.current,
+              timeString: timestamp,
+              date: new Date().toLocaleDateString("en-US", {
+                month: "long", day: "2-digit", year: "numeric"
+              }),
+              imageUrl: imageUrl || '',
+              userFirstName: userData?.firstName || "",
+              userSurname: userData?.surname || "",
+              location,
+              timestamp: new Date().getTime()
+            };
+            
+            entries.push(localStorageEntry);
+            localStorage.setItem(localStorageKey, JSON.stringify(entries));
+            console.log("✅ Fallback localStorage save successful");
+          }
+          
           await checkPendingItems();
           alert("Network error. Saved offline - will sync when connection restored.");
           
         } catch (fallbackError) {
-          console.error("❌ Fallback also failed:", fallbackError);
+          console.error("❌ All fallback attempts failed:", fallbackError);
           alert("Failed to save entry. Please try again.");
         }
       } else {
@@ -1260,7 +1311,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
                 Syncing...
               </>
             ) : syncStatus === 'success' ? (
-              <>Synced</>
+              <>Synched</>
             ) : (
               <>Sync Now</>
             )}
