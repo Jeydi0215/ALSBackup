@@ -82,7 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-  
+
   // New state for sync functionality
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [pendingCount, setPendingCount] = useState(0);
@@ -251,7 +251,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           // Add to Firebase with timeout
           const docRef = await Promise.race([
             addDoc(collection(db, "clockLog"), cleanedData),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Firebase timeout')), 10000)
             )
           ]);
@@ -277,17 +277,17 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             // Item is from IndexedDB - we'll clear all at the end
             console.log(`📝 Marked IndexedDB item for removal: ${item.id}`);
           }
-          
+
           successCount++;
-          
+
           // Small delay between operations to prevent rate limiting
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
         } catch (error) {
           console.error(`❌ Error syncing item ${item.id}:`, error);
           errors.push(`${item.id}: ${error.message}`);
           errorCount++;
-          
+
           // Continue with next item instead of stopping
           continue;
         }
@@ -309,7 +309,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       if (errors.length > 0) {
         console.error("Sync errors:", errors);
       }
-      
+
       if (isManualSync) {
         if (errorCount === 0) {
           setSyncStatus('success');
@@ -320,10 +320,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           alert(`Sync completed with errors. ${successCount} items synced, ${errorCount} failed. Check console for details.`);
         }
       }
-      
+
       // Update pending count
       await checkPendingItems();
-      
+
     } catch (error) {
       console.error("❌ Error during offline sync:", error);
       if (isManualSync) {
@@ -340,12 +340,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       alert("You are currently offline. Please check your internet connection and try again.");
       return;
     }
-    
+
     if (syncStatus === 'syncing') {
       console.log("⚠️ Sync already in progress");
       return;
     }
-    
+
     console.log("🔄 Manual sync triggered");
     await syncPendingData(true);
   };
@@ -359,7 +359,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         syncPendingData();
       }, 1000);
     };
-    
+
     const handleOffline = () => {
       console.log("📱 Connection lost - going offline");
       setIsOnline(false);
@@ -623,8 +623,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       if (logDateObj < sevenDaysAgo || logDateObj > now) return;
 
-      const groupKey = currentUser?.admin 
-        ? `${log.uid}_${logDateStr}` 
+      const groupKey = currentUser?.admin
+        ? `${log.uid}_${logDateStr}`
         : logDateStr;
 
       if (!dates[groupKey]) {
@@ -633,7 +633,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           workingHours: "",
           userId: log.uid,
           logIds: [],
-          employeeName: currentUser?.admin 
+          employeeName: currentUser?.admin
             ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
             : undefined,
           isComplete: false,
@@ -642,7 +642,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       }
 
       dates[groupKey].logIds.push(log.id);
-      
+
       if (!dates[groupKey][log.key]) {
         dates[groupKey][log.key] = log.timeString;
       }
@@ -657,48 +657,59 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         day.breakOut || "",
         day.clockOut || ""
       );
-      
+
       day.isComplete = !!day.clockIn && !!day.clockOut;
     });
 
-    return Object.values(dates).sort((a, b) => 
+    return Object.values(dates).sort((a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   };
 
   const calculateUndertime = (entry: WeeklyReportDay): string => {
-    const parseMinutes = (t: string): number => {
-      const [h, mPart] = t.replace("AM", "").replace("PM", "").trim().split(":");
-      const m = parseInt(mPart || "0");
-      let hour = parseInt(h || "0");
+  const expectedMinutes = 8 * 60;
 
-      const isPM = /PM/i.test(t);
-      if (isPM && hour < 12) hour += 12;
-      if (!isPM && hour === 12) hour = 0;
-
-      return hour * 60 + m;
-    };
-
-    if (!entry.clockIn || !entry.clockOut) return "-";
-
-    const start = parseMinutes(entry.clockIn);
-    const end = parseMinutes(entry.clockOut);
-
-    let worked = end - start;
-
-    if (entry.breakIn && entry.breakOut) {
-      worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
-    }
-
-    const expected = 8 * 60;
-    const undertime = expected - worked;
-
-    if (undertime <= 0) return "-";
-
-    const hours = Math.floor(undertime / 60);
-    const minutes = undertime % 60;
-    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
+  const parseMinutes = (time: string | undefined): number => {
+    if (!time) return 0;
+    const [timePart, period] = time.split(" ");
+    const [hours, minutes] = timePart.split(":").map(Number);
+    let h = hours;
+    if (period === "PM" && h < 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return h * 60 + minutes;
   };
+
+  if (!entry.clockIn || !entry.clockOut) return "-";
+
+  const rawClockIn = parseMinutes(entry.clockIn);
+  const rawClockOut = parseMinutes(entry.clockOut);
+
+  // 🛑 Edge case: identical time
+  if (rawClockIn === rawClockOut) return "No Working Hours";
+
+  const start = Math.max(rawClockIn, 8 * 60);
+  let end = rawClockOut;
+
+  if (end >= 17 * 60 && end <= 20 * 60) end = 17 * 60;
+
+  // Deduct break
+  if (entry.breakOut && entry.breakIn) {
+    const bOut = parseMinutes(entry.breakOut);
+    const bIn = parseMinutes(entry.breakIn);
+    if (bOut && bIn && bIn > bOut) {
+      end -= (bIn - bOut);
+    }
+  }
+
+  const total = end - start;
+  const diff = expectedMinutes - total;
+
+  if (diff <= 0) return "-";
+
+  const hrs = Math.floor(diff / 60);
+  const mins = diff % 60;
+  return `${hrs > 0 ? `${hrs}h ` : ""}${mins}m`;
+};
 
   const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
     const logs = [...clockLog];
@@ -805,95 +816,107 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       const isSunday = dateObj.getDay() === 0;
       const isHoliday = holidayMap[dateStr];
 
-      const rowStyle = isHoliday
-        ? 'style="background-color: #ffdede;"'
-        : isSunday
-          ? 'style="background-color: #f0f0f0;"'
-          : log ? '' : 'style="background-color: #fff8dc;"';
+      const isFutureDate = dateObj > new Date();
 
-      const notes = isHoliday
-        ? holidayMap[dateStr]
-        : isSunday
-          ? "Sunday"
-          : log
-            ? ""
-            : "Absent";
+const notes = isHoliday
+  ? holidayMap[dateStr]
+  : isSunday
+    ? "Sunday"
+    : isFutureDate
+      ? "—"
+      : log
+        ? ""
+        : "Absent";
+
+        const rowStyle = isHoliday
+  ? 'style="background-color: #ffdede;"'
+  : isSunday
+    ? 'style="background-color: #f0f0f0;"'
+    : isFutureDate
+      ? ''
+      : log
+        ? ''
+        : 'style="background-color: #fff8dc;"'; // Yellow for absent
+
+
+
 
       return `
-        <tr ${rowStyle}>
-          <td>${readableDate}</td>
-          <td>${log?.clockIn || "-"}</td>
-          <td>${log?.breakIn || "-"}</td>
-          <td>${log?.breakOut || "-"}</td>
-          <td>${log?.clockOut || "-"}</td>
-          <td>${notes || calculateUndertime(log)}</td>
-        </tr>`;
+      <tr ${rowStyle}>
+        <td>${readableDate}</td>
+        <td>${log?.clockIn || "-"}</td>
+        <td>${log?.breakIn || "-"}</td>
+        <td>${log?.breakOut || "-"}</td>
+        <td>${log?.clockOut || "-"}</td>
+        <td>${notes || calculateUndertime(log)}</td>
+      </tr>`;
     }).join("");
 
     return `
-    <div class="DTR">
-      <div class="Civil">
-        <span>Civil Service Form No. 48</span>
-        <span>1-136</span>
-      </div>
+  <div class="DTR">
+    <div class="Civil">
+      <span>Civil Service Form No. 48</span>
+      <span>1-136</span>
+    </div>
 
-      <div class="Daily">
-        <span class="Bold">DAILY TIME RECORD</span>
-        <div class="Daily-inner">
-          <span class="Bold Name">${name}</span>
-          <span>${position}</span>
-          <span>${office}</span>
-        </div>
+    <div class="Daily">
+      <span class="Bold">DAILY TIME RECORD</span>
+      <div class="Daily-inner">
+        <span class="Bold Name">${name}</span>
+        <span>${position}</span>
+        <span>${office}</span>
       </div>
+    </div>
 
-      <div class="Month">
-        <span>For the Month of: ${month}</span>
-        <div class="Month-inner">
-          <span>Official Hours of:</span>
-          <span>Regular Days:</span>
-          <span>Arrival and Departure:</span>
-          <span>Saturdays:</span>
-        </div>
+    <div class="Month">
+      <span>For the Month of: ${month}</span>
+      <div class="Month-inner">
+        <span>Official Hours of:</span>
+        <span>Regular Days:</span>
+        <span>Arrival and Departure:</span>
+        <span>Saturdays:</span>
       </div>
+    </div>
 
-      <div class="Table">
-        <span class="Bold">PERMANENT</span>
-        <table border="1" cellpadding="4" cellspacing="0">
-          <thead>
-            <tr>
-              <th rowspan="2">Date</th>
-              <th colspan="2">AM</th>
-              <th colspan="2">PM</th>
-              <th rowspan="2">UNDERTIME</th>
-            </tr>
-            <tr>
-              <th>ARRIVAL</th>
-              <th>DEPARTURE</th>
-              <th>ARRIVAL</th>
-              <th>DEPARTURE</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
+    <div class="Table">
+      <span class="Bold">PERMANENT</span>
+      <table border="1" cellpadding="4" cellspacing="0">
+        <thead>
+          <tr>
+            <th rowspan="2">Date</th>
+            <th colspan="2">AM</th>
+            <th colspan="2">PM</th>
+            <th rowspan="2">UNDERTIME</th>
+          </tr>
+          <tr>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
 
-      <div class="Certify">
-        <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
-        <span class="Signature"></span>
-        <span>Reviewed by:</span>
-        <span class="Signature"></span>
-        <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
-      </div>
+    <div class="Certify">
+      <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
+      <span class="Signature"></span>
+      <span>Reviewed by:</span>
+      <span class="Signature"></span>
+      <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
+    </div>
 
-      <div class="Verified">
-        <span>VERIFIED as to the prescribed office hours</span>
-        <div class="Verified-inner">
-          <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
-          <span class="Bold">Chief - Curriculum Implementation Division</span>
-        </div>
+    <div class="Verified">
+      <span>VERIFIED as to the prescribed office hours</span>
+      <div class="Verified-inner">
+        <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+        <span class="Bold">Chief - Curriculum Implementation Division</span>
       </div>
-    </div>`;
+    </div>
+  </div>`;
   };
+
 
   const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
     const res = await fetch("https://date.nager.at/api/v3/PublicHolidays/2025/PH");
@@ -1049,7 +1072,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
   ) => {
     console.log("🎯 handleClockLogSubmit called");
-    
+
     if (!currentUser || !actionKeyRef.current) {
       console.error("❌ Missing user or action key");
       alert("Missing required data. Please try again.");
@@ -1204,7 +1227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           
           await checkPendingItems();
           alert("Network error. Saved offline - will sync when connection restored.");
-          
+
         } catch (fallbackError) {
           console.error("❌ All fallback attempts failed:", fallbackError);
           alert("Failed to save entry. Please try again.");
@@ -1225,7 +1248,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           100% { transform: rotate(360deg); }
         }
       `}</style>
-      
+
       <h1 className={styles.Dash_title}>Dashboard</h1>
 
       {/* Sync Button Section */}
@@ -1276,14 +1299,14 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
               Sync failed. Please try again.
             </span>
           )}
-          
+
           <button
             onClick={handleManualSync}
             disabled={!isOnline || syncStatus === 'syncing'}
             style={{
-              background: syncStatus === 'syncing' ? '#6c757d' : 
-                         syncStatus === 'success' ? '#28a745' : 
-                         isOnline ? '#007bff' : '#6c757d',
+              background: syncStatus === 'syncing' ? '#6c757d' :
+                syncStatus === 'success' ? '#28a745' :
+                  isOnline ? '#007bff' : '#6c757d',
               color: 'white',
               border: 'none',
               padding: '8px 16px',
@@ -1368,7 +1391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           </div>
         </div>
       )}
-      
+
       <div className={styles.Weekly}>
         <div className={styles.Weekly_head}>
           <span className={styles.ReportText}>
@@ -1416,31 +1439,31 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           <div className={styles.WeeklyTable}>
             <div className={styles.Clock_day}>
               <div className={styles.Clock_morning}>
-              <h2>Morning:</h2>
-              <table>
-                <thead>
-                  <tr>
-                    {currentUser?.admin && <th>Employee</th>}
-                    <th>Date</th>
-                    <th>Clock In</th>
-                    <th>Clock Out</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeklyReportData.map((entry, index) => {
-                    const employeeName = entry.employeeName || "Unknown User";
+                <h2>Morning:</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      {currentUser?.admin && <th>Employee</th>}
+                      <th>Date</th>
+                      <th>Clock In</th>
+                      <th>Clock Out</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyReportData.map((entry, index) => {
+                      const employeeName = entry.employeeName || "Unknown User";
 
-                    return (
-                      <tr key={index}>
-                        {currentUser?.admin && <td>{employeeName}</td>}
-                        <td>{entry.date}</td>
-                        <td>{entry.clockIn || "-"}</td>
-                        <td>{entry.breakIn || "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      return (
+                        <tr key={index}>
+                          {currentUser?.admin && <td>{employeeName}</td>}
+                          <td>{entry.date}</td>
+                          <td>{entry.clockIn || "-"}</td>
+                          <td>{entry.breakIn || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <div className={styles.Clock_afternoon}>

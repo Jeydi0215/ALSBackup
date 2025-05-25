@@ -14,7 +14,7 @@ body {
 }
 
 .DTR {
-  page-break-after: always;
+  /* page-break-after: always; */
   width: 100%;
   max-width: 800px;
   margin: auto;
