@@ -54,6 +54,10 @@ thead {
   background-color: #f0f0f0;
 }
 
+.Scheduled th{
+    color:#03396C;
+  background-color:#fff;
+}
 @media (min-width: 768px) and (max-width: 1024px) {
   .Schedule_head span {
     font-size: 1.25em;

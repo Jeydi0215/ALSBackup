@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "vercel-build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -16,6 +17,8 @@
     "face-api.js": "^0.22.2",
     "file-saver": "^2.0.5",
     "firebase": "^11.6.1",
+    "html2pdf.js": "^0.10.3",
+    "idb": "^8.0.3",
     "papaparse": "^5.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

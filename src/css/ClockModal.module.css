@@ -189,5 +189,17 @@
 @media (max-width: 431px) {
   .ClockModal_inner {
     width: 95%;
+    max-height: 75vh; /* Limit height to viewport */
+    overflow-y: auto; /* Make content scrollable */
+    padding-bottom: 1rem; /* Add space at bottom */
+  }
+
+  .CameraContainer {
+    max-height: 50vh; /* Limit camera/image height */
+  }
+
+  .User {
+    height: auto; /* Let image height adjust */
+    max-height: 50vh; /* But limit maximum */
   }
 }

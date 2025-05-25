@@ -45,6 +45,7 @@ ul {
   width: 90%;
   flex-direction: column;
   justify-content: flex-start;
+  align-items: center;
 }
 
 li {
@@ -163,7 +164,7 @@ li:hover {
 
   ul {
     flex-direction: row;
-    justify-content: space-between;
+    justify-content: center;
   }
 
   li {
