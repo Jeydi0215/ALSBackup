@@ -2,12 +2,69 @@ import { useState, useRef, useEffect } from "react";
 import styles from "../css/ClockModal.module.css";
 import Calendar from "../assets/calendar.png";
 import Close from "../assets/close.png";
-
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { imageDb } from "../firebase";
-
 import * as faceapi from "face-api.js";
 import { getOpenCageKey } from '../utils/apiKeys';
+
+// IndexedDB Service
+const AttendanceDB = {
+  dbName: 'AttendanceDB',
+  storeName: 'pendingLogs',
+  version: 1,
+
+  async init(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.version);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error('Failed to open database'));
+    });
+  },
+
+  async saveLog(data: any): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      const request = store.add(data);
+
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(new Error('Failed to save log'));
+    });
+  },
+
+  async getLogs(): Promise<any[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const store = tx.objectStore(this.storeName);
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(new Error('Failed to get logs'));
+    });
+  },
+
+  async deleteLog(id: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error('Failed to delete log'));
+    });
+  }
+};
 
 type Props = {
   handleCameraClick: () => void;
@@ -21,32 +78,8 @@ type Props = {
       longitude: number;
       address?: string;
     }
-  ) => void;
+  ) => Promise<void>;
 };
-
-// IndexedDB setup
-const DB_NAME = "attendanceDB";
-const DB_VERSION = 1;
-const STORE_NAME = "pendingAttendance";
-
-interface PendingAttendance {
-  id?: number;
-  image: string;
-  timestamp: string;
-  metadata: {
-    date: string;
-    time: string;
-    timestampMs: number;
-    formattedTime: string;
-    withLocation: boolean;
-    location?: {
-      latitude: number;
-      longitude: number;
-    };
-  };
-  uploaded: boolean;
-  createdAt: number;
-}
 
 const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) => {
   const [shareLocation, setShareLocation] = useState(false);
@@ -54,406 +87,266 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     latitude: number;
     longitude: number;
     address?: string;
-  } | undefined>();
+  } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingUploads, setPendingUploads] = useState<number>(0);
+  const [syncStatus, setSyncStatus] = useState("");
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Initialize IndexedDB
+  // Network status
   useEffect(() => {
-    const initializeDatabase = () => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      
-      request.onerror = (event) => {
-        console.error("IndexedDB error:", event.target.error);
-      };
-      
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Create object store for pending attendance records
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { 
-            keyPath: "id", 
-            autoIncrement: true 
-          });
-          
-          // Create indexes for easier querying
-          store.createIndex("uploaded", "uploaded", { unique: false });
-          store.createIndex("createdAt", "createdAt", { unique: false });
-        }
-      };
-      
-      request.onsuccess = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        console.log("IndexedDB initialized successfully");
-        db.close();
-        
-        // Check for pending uploads on initialization
-        checkPendingUploads();
-        
-        // If we're online when component mounts, try to sync immediately
-        if (navigator.onLine) {
-          setTimeout(() => {
-            syncPendingAttendance();
-          }, 1000);
-        }
-      };
+    const handleStatusChange = () => {
+      setIsOnline(navigator.onLine);
+      if (navigator.onLine) syncPendingLogs();
     };
-    
-    initializeDatabase();
-  }, []);
 
-  // Network status listeners with improved sync behavior
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log("App is online. Checking for pending uploads...");
-      setIsOnline(true);
-      // Add a slight delay to ensure network is stable before syncing
-      setTimeout(() => {
-        syncPendingAttendance();
-      }, 2000);
-    };
-    
-    const handleOffline = () => {
-      setIsOnline(false);
-      console.log("App is offline. Data will be stored locally.");
-    };
-    
-    // Set up event listeners
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    
-    // Check if we're online when component mounts and sync if needed
-    if (navigator.onLine) {
-      console.log("Component mounted while online. Checking for pending uploads...");
-      setTimeout(() => {
-        syncPendingAttendance();
-      }, 2000);
-    }
-    
-    // Clean up event listeners
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
     };
   }, []);
 
-  // Check for pending uploads
-  const checkPendingUploads = () => {
-    const request = indexedDB.open(DB_NAME);
-    
-    request.onsuccess = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      const transaction = db.transaction([STORE_NAME], "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const index = store.index("uploaded");
-      
-      const countRequest = index.count(IDBKeyRange.only(false));
-      
-      countRequest.onsuccess = () => {
-        setPendingUploads(countRequest.result);
-      };
-      
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    };
-  };
-
-  // Save attendance to IndexedDB
-  const saveToIndexedDB = (attendanceData: PendingAttendance) => {
-    return new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME);
-      
-      request.onerror = (event) => {
-        reject((event.target as IDBOpenDBRequest).error);
-      };
-      
-      request.onsuccess = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        const transaction = db.transaction([STORE_NAME], "readwrite");
-        const store = transaction.objectStore(STORE_NAME);
-        
-        const addRequest = store.add(attendanceData);
-        
-        addRequest.onsuccess = () => {
-          console.log("Attendance data saved to IndexedDB:", addRequest.result);
-          checkPendingUploads();
-          resolve();
-        };
-        
-        addRequest.onerror = (event) => {
-          reject((event.target as IDBRequest).error);
-        };
-        
-        transaction.oncomplete = () => {
-          db.close();
-        };
-      };
-    });
-  };
-
-  // Sync pending attendance records with server
-  const syncPendingAttendance = async () => {
-    if (!navigator.onLine) {
-      console.log("Still offline. Can't sync data yet.");
-      return;
-    }
-    
-    console.log("Starting to sync pending attendance records...");
-    
-    try {
-      const request = indexedDB.open(DB_NAME);
-      
-      request.onerror = (event) => {
-        console.error("Error opening database for sync:", (event.target as IDBOpenDBRequest).error);
-      };
-      
-      request.onsuccess = async (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        const transaction = db.transaction([STORE_NAME], "readwrite");
-        const store = transaction.objectStore(STORE_NAME);
-        const index = store.index("uploaded");
-        
-        // Get all pending records
-        const getPendingRecords = (): Promise<PendingAttendance[]> => {
-          return new Promise((resolve) => {
-            const records: PendingAttendance[] = [];
-            const cursorRequest = index.openCursor(IDBKeyRange.only(false));
-            
-            cursorRequest.onsuccess = (event) => {
-              const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
-              
-              if (cursor) {
-                console.log("Found pending record:", cursor.value);
-                records.push(cursor.value);
-                cursor.continue();
-              } else {
-                resolve(records);
-              }
-            };
-            
-            cursorRequest.onerror = () => {
-              console.error("Error getting pending records");
-              resolve([]);
-            };
-          });
-        };
-        
-        const pendingRecords = await getPendingRecords();
-        console.log(`Found ${pendingRecords.length} pending records to sync`);
-        
-        if (pendingRecords.length === 0) {
-          db.close();
-          return;
-        }
-        
-        // Process each pending record
-        for (const record of pendingRecords) {
-          try {
-            console.log(`Processing record ID: ${record.id}`);
-            
-            // Get address using reverse geocoding if location exists
-            let address: string | undefined;
-            if (record.metadata.withLocation && record.metadata.location) {
-              try {
-                address = await reverseGeocode(
-                  record.metadata.location.latitude,
-                  record.metadata.location.longitude
-                );
-              } catch (error) {
-                console.warn("Failed to reverse geocode:", error);
-              }
-            }
-            
-            // Upload image to Firebase
-            console.log("Uploading image to Firebase...");
-            const imageUrl = await uploadToFirebase(record.image);
-            console.log("Image uploaded, URL:", imageUrl);
-            
-            // Prepare location object
-            const locationData = record.metadata.withLocation && record.metadata.location
-              ? {
-                  latitude: record.metadata.location.latitude,
-                  longitude: record.metadata.location.longitude,
-                  address: address
-                }
-              : undefined;
-            
-            // Submit to main system
-            console.log("Submitting to main system via onSubmitClockLog...");
-            onSubmitClockLog(
-              record.image,
-              record.timestamp,
-              imageUrl,
-              locationData
-            );
-            
-            // Mark as uploaded in IndexedDB
-            const updateTransaction = db.transaction([STORE_NAME], "readwrite");
-            const updateStore = updateTransaction.objectStore(STORE_NAME);
-            
-            updateStore.put({
-              ...record,
-              uploaded: true
-            });
-            
-            console.log(`Successfully synced and marked record ID: ${record.id} as uploaded`);
-          } catch (error) {
-            console.error(`Failed to sync record ID: ${record.id}`, error);
-          }
-        }
-        
-        transaction.oncomplete = () => {
-          db.close();
-          checkPendingUploads();
-          console.log("Sync complete");
-        };
-      };
-    } catch (error) {
-      console.error("Error in syncPendingAttendance:", error);
-    }
-  };
-
-  // Load face-api.js models on mount
+  // Face detection models
   useEffect(() => {
     const loadModels = async () => {
       try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri("/models"); // Path to public/models
-        console.log("face-api.js models loaded");
-      } catch (err) {
-        console.error("Error loading face-api.js models:", err);
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+      } catch (error) {
+        console.error("Failed to load face models:", error);
       }
     };
     loadModels();
   }, []);
 
-  const handleLocationClick = async () => {
-    if (!shareLocation) {
+  // Camera setup
+  useEffect(() => {
+    if (!showCamera) return;
+
+    const startCamera = async () => {
       try {
-        const position = await getCurrentPosition();
-        const { latitude, longitude } = position.coords;
-        
-        // Only attempt reverse geocoding if online
-        let address: string | undefined;
-        if (navigator.onLine) {
-          address = await reverseGeocode(latitude, longitude);
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          streamRef.current = stream;
+          videoRef.current.srcObject = stream;
         }
-        
-        setLocation({
-          latitude,
-          longitude,
-          address
-        });
-        setShareLocation(true);
-        setLocationError(null);
       } catch (error) {
-        console.error("Error getting location:", error);
-        setLocationError("Failed to get location. Please check permissions.");
-        setShareLocation(false);
-        setLocation(undefined);
+        console.error("Camera error:", error);
+        alert("Camera access denied. Please enable camera permissions.");
       }
-    } else {
-      setLocation(undefined);
-      setShareLocation(false);
+    };
+
+    startCamera();
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [showCamera]);
+
+  // Show success message with auto-hide
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+      setSuccessMessage("");
+    }, 4000); // Show for 4 seconds
+  };
+
+  // Sync localStorage fallback records
+  const syncLocalStorageFallback = async () => {
+    if (!isOnline) return;
+
+    try {
+      // Check for fallback records in localStorage
+      const fallbackKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('attendance_')
+      );
+
+      if (fallbackKeys.length > 0) {
+        setSyncStatus(`Syncing ${fallbackKeys.length} fallback records...`);
+        
+        for (const key of fallbackKeys) {
+          try {
+            const logData = JSON.parse(localStorage.getItem(key) || '{}');
+            const imageUrl = await uploadToFirebase(logData.image);
+            await onSubmitClockLog(
+              logData.image,
+              logData.timestamp,
+              imageUrl,
+              logData.location
+            );
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error(`Failed to sync fallback record ${key}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Fallback sync error:", error);
     }
   };
 
-  const getCurrentPosition = (): Promise<GeolocationPosition> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported by your browser"));
-      }
-      
-      navigator.geolocation.getCurrentPosition(
-        resolve,
-        (error) => reject(error),
-        { 
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    });
-  };
+  // Sync pending logs when online
+  const syncPendingLogs = async () => {
+    if (!isOnline) return;
 
-  const reverseGeocode = async (lat: number, lng: number) => {
     try {
-      const apiKey = await getOpenCageKey(); // Get from Realtime DB
+      // Sync IndexedDB records
+      const pendingLogs = await AttendanceDB.getLogs();
       
-      const response = await fetch(
-        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}`
-      );
+      // Also sync localStorage fallback records
+      await syncLocalStorageFallback();
       
-      const data = await response.json();
-      return data.results[0]?.formatted || "Unknown location";
+      if (pendingLogs.length === 0) return;
+
+      setSyncStatus(`Syncing ${pendingLogs.length} pending attendance records...`);
+
+      for (const log of pendingLogs) {
+        try {
+          const imageUrl = await uploadToFirebase(log.image);
+          await onSubmitClockLog(
+            log.image,
+            log.timestamp,
+            imageUrl,
+            log.location
+          );
+          await AttendanceDB.deleteLog(log.id);
+        } catch (error) {
+          console.error("Failed to sync log:", error);
+        }
+      }
+
+      setSyncStatus("All pending records synced successfully!");
+      showSuccess("🎉 All offline records have been synced!");
     } catch (error) {
-      console.error("Geocoding failed:", error);
-      return "Location lookup failed";
+      console.error("Sync error:", error);
+      setSyncStatus("Failed to sync some records");
+    } finally {
+      setTimeout(() => setSyncStatus(""), 3000);
     }
   };
 
   const takePhoto = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    if (canvas && video) {
-      const ctx = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const image = canvas.toDataURL("image/png");
-      setCapturedImage(image);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
+    if (!canvas || !video) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setCapturedImage(canvas.toDataURL("image/png"));
+    
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
   };
 
   const handleRetake = () => {
     setCapturedImage(null);
-    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    });
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        streamRef.current = stream;
+        if (videoRef.current) videoRef.current.srcObject = stream;
+      })
+      .catch(error => {
+        console.error("Camera error:", error);
+        alert("Failed to access camera. Please refresh the page.");
+      });
   };
 
-  const uploadToFirebase = async (imageDataUrl: string): Promise<string> => {
-    try {
-      const today = new Date();
-      const dateFolder = today.toISOString().split("T")[0];
-      const timestamp = today.getTime();
-      const fileName = `time-ins/${dateFolder}/user_${timestamp}.png`;
-      const storageRef = ref(imageDb, fileName);
-      const base64Data = imageDataUrl.split(",")[1];
-      await uploadString(storageRef, base64Data, "base64");
-      const downloadUrl = await getDownloadURL(storageRef);
-      console.log("Image uploaded successfully to:", fileName);
-      return downloadUrl;
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      throw error;
-    }
+  const uploadToFirebase = async (imageData: string): Promise<string> => {
+    const timestamp = Date.now();
+    const dateFolder = new Date().toISOString().split("T")[0];
+    const storageRef = ref(imageDb, `time-ins/${dateFolder}/user_${timestamp}.png`);
+    const base64Data = imageData.split(",")[1];
+    
+    await uploadString(storageRef, base64Data, "base64");
+    return await getDownloadURL(storageRef);
   };
 
-  // Detect face using face-api.js
   const detectFace = async (canvas: HTMLCanvasElement): Promise<boolean> => {
     try {
-      const detections = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions());
-      console.log("Faces detected:", detections.length);
+      const detections = await faceapi.detectAllFaces(
+        canvas, 
+        new faceapi.TinyFaceDetectorOptions()
+      );
       return detections.length > 0;
     } catch (error) {
       console.error("Face detection error:", error);
       return false;
+    }
+  };
+
+  const handleLocationClick = async () => {
+    if (shareLocation) {
+      setShareLocation(false);
+      setLocation(null);
+      setLocationError(null);
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // Accept cached location up to 5 minutes old
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      let address = "Location acquired";
+
+      // Only try geocoding if online
+      if (isOnline) {
+        try {
+          const apiKey = await getOpenCageKey();
+          const response = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${apiKey}`,
+            { 
+              signal: AbortSignal.timeout(5000) // 5 second timeout
+            }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            address = data.results[0]?.formatted || address;
+          }
+        } catch (geocodingError) {
+          console.warn("Geocoding failed, using coordinates only:", geocodingError);
+          // Don't throw error, just use default address
+        }
+      } else {
+        address = "Location acquired (offline)";
+      }
+
+      setLocation({ latitude, longitude, address });
+      setShareLocation(true);
+      setLocationError(null);
+    } catch (error: any) {
+      console.error("Location error:", error);
+      let errorMessage = "Failed to get location.";
+      
+      if (error.code === 1) {
+        errorMessage = "Location access denied. Please enable location permissions.";
+      } else if (error.code === 2) {
+        errorMessage = "Location unavailable. Please try again.";
+      } else if (error.code === 3) {
+        errorMessage = "Location request timed out. Please try again.";
+      }
+      
+      setLocationError(errorMessage);
+      setShareLocation(false);
     }
   };
 
@@ -463,101 +356,106 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       return;
     }
 
-    try {
-      setIsUploading(true);
+    setIsUploading(true);
+    setSyncStatus("Processing attendance...");
 
-      const hasFace = await detectFace(canvasRef.current);
-      if (!hasFace) {
-        alert("No face detected. Please retake the photo.");
-        setIsUploading(false);
-        setCapturedImage(null);
-        return;
+    try {
+      // Face verification - skip if offline and models not loaded
+      let hasFace = true; // Default to true for offline mode
+      
+      if (isOnline) {
+        try {
+          hasFace = await detectFace(canvasRef.current);
+          if (!hasFace) {
+            alert("No face detected. Please retake photo with clear face visibility.");
+            setIsUploading(false);
+            setCapturedImage(null);
+            return;
+          }
+        } catch (faceDetectionError) {
+          console.warn("Face detection failed, proceeding anyway:", faceDetectionError);
+          // Continue with submission even if face detection fails
+        }
       }
 
+      // Prepare data
       const now = new Date();
-      const formattedTimestamp = now.toLocaleString("en-US", {
-        weekday: "long",
-        month: "short",
-        day: "2-digit",
-        year: "numeric",
+      const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+      const timestamp = manilaTime.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
-        hour12: true,
+        hour12: true
       });
 
-      // Create attendance record
-      const attendanceData: PendingAttendance = {
+      const logData = {
         image: capturedImage,
-        timestamp: formattedTimestamp,
-        metadata: {
-          date: now.toISOString().split("T")[0],
-          time: now.toTimeString().split(" ")[0],
-          timestampMs: now.getTime(),
-          formattedTime: formattedTimestamp,
-          withLocation: shareLocation,
-          location: shareLocation && location ? {
-            latitude: location.latitude,
-            longitude: location.longitude
-          } : undefined
-        },
-        uploaded: false,
-        createdAt: Date.now()
+        timestamp,
+        location: shareLocation ? location : null,
+        createdAt: now.toISOString()
       };
 
-      if (navigator.onLine) {
-        // Process online - upload immediately
-        const imageUrl = await uploadToFirebase(capturedImage);
-        
-        onSubmitClockLog(
-          capturedImage, 
-          formattedTimestamp, 
-          imageUrl, 
-          shareLocation ? location : undefined
-        );
-        
-        console.log("Time-in recorded and uploaded successfully");
+      // Submission flow
+      if (isOnline) {
+        try {
+          const imageUrl = await uploadToFirebase(capturedImage);
+          await onSubmitClockLog(capturedImage, timestamp, imageUrl, shareLocation ? location : undefined);
+          setSyncStatus("Attendance recorded successfully!");
+        } catch (onlineError) {
+          console.error("Online submission failed, saving offline:", onlineError);
+          try {
+            await AttendanceDB.saveLog(logData);
+            setSyncStatus("Connection failed - saved offline, will sync when online");
+          } catch (dbError) {
+            console.error("Failed to save offline:", dbError);
+            throw new Error("Failed to save attendance record");
+          }
+        }
       } else {
-        // Process offline - save to IndexedDB
-        await saveToIndexedDB(attendanceData);
-        console.log("Time-in saved locally. Will upload when online.");
-        
-        // Show notification to user
-        alert("You are currently offline. Your attendance has been saved and will be uploaded when you're back online.");
+        // Offline mode - save to IndexedDB
+        try {
+          await AttendanceDB.saveLog(logData);
+          setSyncStatus("Saved offline - will sync when online");
+          console.log("Successfully saved offline attendance record");
+        } catch (dbError) {
+          console.error("IndexedDB save failed:", dbError);
+          // Try localStorage as fallback
+          try {
+            const fallbackKey = `attendance_${Date.now()}`;
+            localStorage.setItem(fallbackKey, JSON.stringify(logData));
+            setSyncStatus("Saved locally - will sync when online");
+            console.log("Saved to localStorage as fallback");
+          } catch (storageError) {
+            console.error("All storage methods failed:", storageError);
+            throw new Error("Unable to save attendance record");
+          }
+        }
       }
 
+      // Reset on success
       setCapturedImage(null);
       handleCameraClick();
-    } catch (error) {
-      alert("Failed to process attendance. Please try again.");
-      console.error("Submit error:", error);
+    } catch (error: any) {
+      console.error("Submission error:", error);
+      setSyncStatus("Failed to submit attendance");
+      alert(`Submission failed: ${error.message || 'Please try again'}`);
     } finally {
       setIsUploading(false);
+      setTimeout(() => setSyncStatus(""), 3000);
     }
   };
-
-  useEffect(() => {
-    if (showCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-        streamRef.current = stream;
-        videoRef.current!.srcObject = stream;
-        videoRef.current!.play();
-      });
-    }
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-    };
-  }, [showCamera]);
 
   return (
     <div className={showCamera ? styles.ClockModal : styles.ClockModal2}>
       <div className={styles.ClockModal_inner}>
         <div className={styles.Head}>
-          <img onClick={handleCameraClick} className={styles.Close} src={Close} alt="Close" />
+          <img 
+            onClick={handleCameraClick} 
+            className={styles.Close} 
+            src={Close} 
+            alt="Close" 
+          />
           <div className={styles.Head_inner}>
-            <img src={Calendar} alt="Calendar Icon" />
+            <img src={Calendar} alt="Calendar" />
             <span>{new Date().toLocaleString()}</span>
           </div>
         </div>
@@ -566,28 +464,29 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           {capturedImage ? (
             <img src={capturedImage} className={styles.User} alt="Captured" />
           ) : (
-            <video 
-              ref={videoRef} 
-              className={styles.User} 
-              style={{ 
-                maxHeight: "40vh", // Limit height on mobile
+            <video
+              ref={videoRef}
+              className={styles.User}
+              autoPlay
+              muted
+              playsInline
+              style={{
+                maxHeight: "40vh",
                 objectFit: "contain",
                 margin: "0 auto"
-              }} 
-              autoPlay 
-              muted 
-              playsInline 
+              }}
             />
           )}
           <canvas ref={canvasRef} style={{ display: "none" }} />
         </div>
 
         {shareLocation && location && (
-        <div className={styles.LocationInfo}>
-          <h4>Location Information:</h4>
-          <p>Coordinates: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}</p>
-          {location.address && <p>Address: {location.address}</p>}
-        </div>
+          <div className={styles.LocationInfo}>
+            <h4>Location:</h4>
+            <p>Lat: {location.latitude.toFixed(4)}</p>
+            <p>Lng: {location.longitude.toFixed(4)}</p>
+            {location.address && <p>{location.address}</p>}
+          </div>
         )}
 
         {locationError && (
@@ -598,13 +497,13 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {!isOnline && (
           <div className={styles.OfflineWarning}>
-            <p>You are currently offline. Your attendance will be saved locally and uploaded when you're back online.</p>
+            <p>🔴 You are currently offline. Attendance will be saved locally.</p>
           </div>
         )}
 
-        {pendingUploads > 0 && (
-          <div className={styles.PendingUploads}>
-            <p>{pendingUploads} pending upload{pendingUploads !== 1 ? 's' : ''}</p>
+        {syncStatus && (
+          <div className={styles.SyncStatus}>
+            <p>{syncStatus}</p>
           </div>
         )}
 
@@ -617,16 +516,19 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             >
               {shareLocation ? "Location On" : "Location Off"}
             </button>
-            <button onClick={capturedImage ? handleRetake : takePhoto} disabled={isUploading}>
+            <button 
+              onClick={capturedImage ? handleRetake : takePhoto}
+              disabled={isUploading}
+            >
               {capturedImage ? "Retake Photo" : "Take Photo"}
             </button>
           </div>
           <button
             className={shareLocation ? styles.Submit : styles.Submit2}
             onClick={handleSubmit}
-            disabled={isUploading}
+            disabled={isUploading || !capturedImage}
           >
-            {isUploading ? "Uploading..." : "Submit"}
+            {isUploading ? "Processing..." : "Submit"}
           </button>
         </div>
       </div>

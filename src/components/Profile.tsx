@@ -8,12 +8,10 @@ import styles from "../css/Profile.module.css";
 import Avatar from "../assets/avatar.png";
 import Edit from "../assets/Edit.png";
 import User from "../assets/user.png";
-import Gender from "../assets/gender.png";
 import Mail from "../assets/mail.png";
-import Location from "../assets/location.png";
-import Age from "../assets/age.png";
-import Call from "../assets/call.png";
 import Logout from '../assets/logout-w.png'
+import Pass from '../assets/padlock.png'
+import Key from '../assets/key.png'
 
 import Scheduled from "./Scheduled";
 import Summary from "./Summary";
@@ -196,7 +194,7 @@ const Profile = ({ userId }: ProfileProps) => {
             <span>Edit</span>
           </button>
         ) : (
-          <div>
+          <div className={styles.Saved}>
             <button className={styles.Save} style={{ marginRight: 5 }} onClick={handleSave}>
               <span>Save</span>
             </button>
@@ -235,11 +233,11 @@ const Profile = ({ userId }: ProfileProps) => {
               </div>
 
               <div className={styles.Detail}>
-                <img src={Location} alt="Location icon" />
+                <img src={Pass} alt="Location icon" />
                 <div className={styles.Details_input}>
-                  <label htmlFor="">Location:</label>
+                  <label htmlFor="">New Password:</label>
                   <input
-                    type="text"
+                    type="password"
                     value={profileData?.location || ""}
                     readOnly={!isEditing}
                     onChange={(e) => handleChange("location", e.target.value)}
@@ -248,11 +246,11 @@ const Profile = ({ userId }: ProfileProps) => {
               </div>
 
               <div className={styles.Detail}>
-                <img src={Call} alt="Phone icon" />
+                <img src={Key} alt="Phone icon" />
                 <div className={styles.Details_input}>
-                  <label htmlFor="">Phone:</label>
+                  <label htmlFor="">Confirm Password:</label>
                   <input
-                    type="tel"
+                    type="password"
                     value={profileData?.phone || ""}
                     readOnly={!isEditing}
                     onChange={(e) => handleChange("phone", e.target.value.replace(/\D/, ""))}
@@ -262,40 +260,6 @@ const Profile = ({ userId }: ProfileProps) => {
                 </div>
               </div>
 
-              <div className={styles.Detail}>
-                <img src={Age} alt="Age icon" />
-                <div className={styles.Details_input}>
-                  <label htmlFor="">Age:</label>
-                  <input
-                    type="number"
-                    min="18"
-                    max="60"
-                    value={profileData?.age || ""}
-                    readOnly={!isEditing}
-                    onChange={(e) => handleChange("age", e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className={styles.Detail}>
-                <img src={Gender} alt="Gender icon" />
-                <div className={styles.Details_input}>
-                  <label htmlFor="">Gender:</label>
-
-                  {!isEditing ? (
-                    <span>{profileData?.gender || "Not Provided"}</span>
-                  ) : (
-                    <select
-                      value={profileData?.gender || ""}
-                      onChange={(e) => handleChange("gender", e.target.value)}
-                    >
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Others">Others</option>
-                    </select>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         </div>
