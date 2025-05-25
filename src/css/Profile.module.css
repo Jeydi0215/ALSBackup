@@ -251,6 +251,15 @@
   display: inline-block;
 }
 
+.OAuthNotice {
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
 @media (min-width: 768px) and (max-width: 1024px) {
   .Profile_up img{
     display: block;
