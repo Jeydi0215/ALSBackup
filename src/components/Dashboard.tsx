@@ -21,6 +21,8 @@ import {
 import { db } from "../firebase";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import html2pdf from "html2pdf.js";
+import dtrStyles from "../css/DTR.css?inline"; // Load as string with Vite/Webpack
 
 interface UserData {
   firstName: string;
@@ -832,6 +834,211 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     );
   };
 
+  const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
+  const logs = [...clockLog]; // all logs from Firestore
+  const monthlyGrouped: Record<string, WeeklyReportDay[]> = {};
+
+  const logsByDate: Record<string, WeeklyReportDay> = {};
+
+  logs.forEach(log => {
+    if (!log.time || !log.key || !log.timeString) return;
+
+    const logDateObj = log.time instanceof Timestamp ? log.time.toDate() : new Date(log.time);
+    const fullDateStr = logDateObj.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+      year: "numeric",
+    });
+
+    const monthKey = logDateObj.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric"
+    });
+
+    const groupKey = currentUser?.admin 
+      ? `${log.uid}_${fullDateStr}` 
+      : fullDateStr;
+
+    if (!logsByDate[groupKey]) {
+      logsByDate[groupKey] = {
+        date: fullDateStr,
+        workingHours: "",
+        userId: log.uid,
+        logIds: [],
+        employeeName: currentUser?.admin
+          ? `${log.userFirstName || ''} ${log.userSurname || ''}`.trim()
+          : undefined,
+        isComplete: false,
+        hasPending: true
+      };
+    }
+
+    logsByDate[groupKey].logIds.push(log.id);
+    if (!logsByDate[groupKey][log.key]) {
+      logsByDate[groupKey][log.key] = log.timeString;
+    }
+    logsByDate[groupKey].status = log.status;
+  });
+
+  Object.values(logsByDate).forEach(entry => {
+    entry.workingHours = calculateWorkingHours(
+      entry.clockIn || "",
+      entry.breakIn || "",
+      entry.breakOut || "",
+      entry.clockOut || ""
+    );
+    entry.isComplete = !!entry.clockIn && !!entry.clockOut;
+
+    const dateObj = new Date(entry.date);
+    const monthKey = dateObj.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric"
+    });
+
+    if (!monthlyGrouped[monthKey]) {
+      monthlyGrouped[monthKey] = [];
+    }
+
+    monthlyGrouped[monthKey].push(entry);
+  });
+
+  return monthlyGrouped;
+};
+
+const generateDTRHtml = (
+  name: string,
+  position: string,
+  office: string,
+  logs: WeeklyReportDay[],
+  month: string
+): string => {
+  // Convert logs to a lookup map for fast access
+  const logMap: Record<string, WeeklyReportDay> = {};
+  logs.forEach(log => {
+    const dateObj = new Date(log.date);
+    const day = dateObj.getDate();
+    logMap[day] = log;
+  });
+
+  // Get number of days in the month
+  const [monthName, yearStr] = month.split(" ");
+  const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
+  const year = parseInt(yearStr, 10);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  const rows = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const log = logMap[day];
+    const dateStr = `${monthName} ${day < 10 ? "0" + day : day}, ${year}`;
+    return `
+      <tr>
+        <td>${dateStr}</td>
+        <td>${log?.clockIn || "-"}</td>
+        <td>${log?.breakIn || "-"}</td>
+        <td>${log?.breakOut || "-"}</td>
+        <td>${log?.clockOut || "-"}</td>
+        <td>-</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+  <div class="DTR">
+    <div class="Civil">
+      <span>Civil Service Form No. 48</span>
+      <span>1-136</span>
+    </div>
+
+    <div class="Daily">
+      <span class="Bold">DAILY TIME RECORD</span>
+      <div class="Daily-inner">
+        <span class="Bold Name">${name}</span>
+        <span>${position}</span>
+        <span>${office}</span>
+      </div>
+    </div>
+
+    <div class="Month">
+      <span>For the Month of: ${month}</span>
+      <div class="Month-inner">
+        <span>Official Hours of:</span>
+        <span>Regular Days:</span>
+        <span>Arrival and Departure:</span>
+        <span>Saturdays:</span>
+      </div>
+    </div>
+
+    <div class="Table">
+      <span class="Bold">PERMANENT</span>
+      <table border="1" cellpadding="4" cellspacing="0">
+        <thead>
+          <tr>
+            <th rowspan="2">Date</th>
+            <th colspan="2">AM</th>
+            <th colspan="2">PM</th>
+            <th rowspan="2">UNDERTIME</th>
+          </tr>
+          <tr>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+            <th>ARRIVAL</th>
+            <th>DEPARTURE</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+
+    <div class="Certify">
+      <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
+      <span class="Signature"></span>
+      <span>Reviewed by:</span>
+      <span class="Signature"></span>
+      <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
+    </div>
+
+    <div class="Verified">
+      <span>VERIFIED as to the prescribed office hours</span>
+      <div class="Verified-inner">
+        <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+        <span class="Bold">Chief - Curriculum Implementation Division</span>
+      </div>
+    </div>
+  </div>`;
+};
+
+
+const exportToPDF = () => {
+  const logsByMonth = getMonthlyGroupedLogs();
+  const wrapper = document.createElement("div");
+
+  Object.entries(logsByMonth).forEach(([month, logs]) => {
+    const html = generateDTRHtml(
+      `${userData?.firstName} ${userData?.surname}`,
+      "Position Here",
+      "Office Name Here",
+      logs,
+      month
+    );
+
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    wrapper.appendChild(div);
+  });
+
+  // Add CSS
+  const style = document.createElement("style");
+  style.innerHTML = dtrStyles;
+  wrapper.prepend(style);
+
+  html2pdf()
+    .set({ filename: "DTR.pdf", html2canvas: { scale: 2 } })
+    .from(wrapper)
+    .save();
+};
+
+
+
   const handleApprove = async (logIds: string[]) => {
     setIsProcessing(true);
     try {
@@ -1178,11 +1385,11 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             {currentUser?.admin ? "Employee Time Logs" : "Weekly Report"}
           </span>
           <div className={styles.Head_button}>
-            <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
+            {/* <button style={{ marginRight: 5 }} onClick={exportToCSV} className={styles.ExportButton}>
               Export to CSV
-            </button>
-            <button onClick={exportToExcel} className={styles.ExportButton}>
-              Export to Excel
+            </button> */}
+            <button onClick={exportToPDF} className={styles.ExportButton}>
+              Export Monthly DTR PDF
             </button>
           </div>
         </div>
@@ -1221,73 +1428,36 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
               <div className={styles.Clock_afternoon}>
                 <h2>Afternoon:</h2>
                 <table>
-                <thead>
-                  <tr>
-                    {currentUser?.admin && <th>Employee</th>}
-                    <th>Date</th>
-                    <th>Break Out</th>
-                    <th>Clock Out</th>
-                    {/* <th>Status</th>
-                    {currentUser?.admin && <th>Actions</th>} */}
-                  </tr>
-                </thead>
-                <tbody>
-                  {weeklyReportData.map((entry, index) => {
-                    const employeeName = entry.employeeName || "Unknown User";
-                    const statusText = entry.status || "-";
-                    const statusStyle = {
-                      color:
-                        entry.status === 'approved' ? 'green' :
-                        entry.status === 'rejected' ? 'red' :
-                        entry.status === 'pending'  ? 'orange' :
-                        'inherit'
-                    };
-                    // sample comment
+                  <thead>
+                    <tr>
+                      {currentUser?.admin && <th>Employee</th>}
+                      <th>Date</th>
+                      <th>Break Out</th>
+                      <th>Clock Out</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyReportData.map((entry, index) => {
+                      const employeeName = entry.employeeName || "Unknown User";
+                      const statusText = entry.status || "-";
+                      const statusStyle = {
+                        color:
+                          entry.status === 'approved' ? 'green' :
+                          entry.status === 'rejected' ? 'red' :
+                          entry.status === 'pending'  ? 'orange' :
+                          'inherit'
+                      };
 
-                    return (
-                      <tr key={index}>
-                        {currentUser?.admin && <td>{employeeName}</td>}
-                        <td>{entry.date}</td>
-                        <td>{entry.breakOut || "-"}</td>
-                        <td>{entry.clockOut || "-"}</td>
-                        {/* <td style={statusStyle}>{statusText}</td>
-                        {currentUser?.admin && (
-                          <td>
-                            {entry.status === "pending" && entry.isComplete ? (
-                              <>
-                                <button
-                                  style={{ marginRight: 5 }}
-                                  onClick={() => {
-                                    if (window.confirm(`Approve all time entries for ${entry.date}?`)) {
-                                      handleApprove(entry.logIds);
-                                    }
-                                  }}
-                                  className={styles.ApproveButton}
-                                  disabled={isProcessing}
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm(`Reject all time entries for ${entry.date}?`)) {
-                                      handleReject(entry.logIds);
-                                    }
-                                  }}
-                                  className={styles.RejectButton}
-                                  disabled={isProcessing}
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </td>
-                        )} */}
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                      return (
+                        <tr key={index}>
+                          {currentUser?.admin && <td>{employeeName}</td>}
+                          <td>{entry.date}</td>
+                          <td>{entry.breakOut || "-"}</td>
+                          <td>{entry.clockOut || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
                 </table>
               </div>
             </div>
