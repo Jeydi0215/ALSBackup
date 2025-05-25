@@ -910,17 +910,15 @@ const generateDTRHtml = (
   position: string,
   office: string,
   logs: WeeklyReportDay[],
-  month: string
+  month: string,
+  holidayMap: Record<string, string>
 ): string => {
-  // Convert logs to a lookup map for fast access
-  const logMap: Record<string, WeeklyReportDay> = {};
+  const logMap: Record<number, WeeklyReportDay> = {};
   logs.forEach(log => {
-    const dateObj = new Date(log.date);
-    const day = dateObj.getDate();
-    logMap[day] = log;
+    const date = new Date(log.date);
+    logMap[date.getDate()] = log;
   });
 
-  // Get number of days in the month
   const [monthName, yearStr] = month.split(" ");
   const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
   const year = parseInt(yearStr, 10);
@@ -928,18 +926,40 @@ const generateDTRHtml = (
 
   const rows = Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
+    const dateObj = new Date(year, monthIndex, day);
+    const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
     const log = logMap[day];
-    const dateStr = `${monthName} ${day < 10 ? "0" + day : day}, ${year}`;
+    const readableDate = dateObj.toLocaleDateString("en-US", {
+      month: "long",
+      day: "2-digit",
+    });
+
+    const isSunday = dateObj.getDay() === 0;
+    const isHoliday = holidayMap[dateStr];
+
+    const rowStyle = isHoliday
+      ? 'style="background-color: #ffdede;"'
+      : isSunday
+        ? 'style="background-color: #f0f0f0;"'
+        : log ? '' : 'style="background-color: #fff8dc;"'; // Yellow for absent
+
+    const notes = isHoliday
+      ? holidayMap[dateStr]
+      : isSunday
+        ? "Sunday"
+        : log
+          ? ""
+          : "Absent";
+
     return `
-      <tr>
-        <td>${dateStr}</td>
+      <tr ${rowStyle}>
+        <td>${readableDate}</td>
         <td>${log?.clockIn || "-"}</td>
         <td>${log?.breakIn || "-"}</td>
         <td>${log?.breakOut || "-"}</td>
         <td>${log?.clockOut || "-"}</td>
-        <td>-</td>
-      </tr>
-    `;
+        <td>${notes || "-"}</td>
+      </tr>`;
   }).join("");
 
   return `
@@ -1007,8 +1027,23 @@ const generateDTRHtml = (
   </div>`;
 };
 
+const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
+  const res = await fetch("https://date.nager.at/api/v3/PublicHolidays/2025/PH");
+  const data = await res.json();
 
-const exportToPDF = () => {
+  // Return as map: { "2025-01-01": "New Year's Day", ... }
+  const holidayMap: Record<string, string> = {};
+  data.forEach((item: any) => {
+    holidayMap[item.date] = item.localName;
+  });
+
+  return holidayMap;
+};
+
+
+
+const exportToPDF = async () => {
+  const holidayMap = await fetchPhilippineHolidays();
   const logsByMonth = getMonthlyGroupedLogs();
   const wrapper = document.createElement("div");
 
@@ -1018,7 +1053,8 @@ const exportToPDF = () => {
       "Position Here",
       "Office Name Here",
       logs,
-      month
+      month,
+      holidayMap
     );
 
     const div = document.createElement("div");
