@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, firebaseStorage } from "../firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-
+import { useNavigate } from "react-router-dom";
 import styles from "../css/Profile.module.css";
 import Avatar from "../assets/avatar.png";
 import Edit from "../assets/Edit.png";
@@ -17,7 +17,7 @@ import Scheduled from "./Scheduled";
 import Summary from "./Summary";
 import LastWeekLog from "./LastWeekLog";
 import { auth } from "../firebase";
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from "firebase/auth";
 
 type ProfileData = {
   uid: string;
@@ -203,6 +203,28 @@ const Profile = ({ userId }: ProfileProps) => {
     setActiveButton(buttonName);
   };
 
+  const navigate = useNavigate()
+  const handleFirebaseLogout = async () => {
+      try {
+        if (currentUser) {
+          const userDocRef = doc(db, "users", currentUser.uid);
+  
+          // Set status to offline explicitly on logout
+          await updateDoc(userDocRef, {
+            status: "offline",
+          });
+        }
+        await signOut(auth);
+        navigate("/"); 
+      } catch (error: unknown) {
+        if (error instanceof Error){
+          console.error("Error logging out: ", error.message);
+        } else{
+          console.error("An unknown error occurred during logout.");
+        }
+      }
+    };
+
   return (
     <div className={styles.Profile}>
       <span className={styles.Profile_up}>
@@ -212,7 +234,7 @@ const Profile = ({ userId }: ProfileProps) => {
             <span>ADMIN VIEW</span>
           </div>
         )}
-        <img src={Logout} alt="logout" />
+        <img src={Logout} alt="logout" onClick={handleFirebaseLogout} />
       </span>
       <div className={styles.Profile_inner}>
         <div className={styles.Profile_top}>
