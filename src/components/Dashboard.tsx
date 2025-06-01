@@ -829,14 +829,14 @@ const notes = isHoliday
         : "Absent";
 
         const rowStyle = isHoliday
-  ? 'style="background-color: #ffdede;"'
+  ? 'style="background-color: #ffff;"'
   : isSunday
-    ? 'style="background-color: #f0f0f0;"'
+    ? 'style="background-color:rgb(255, 255, 255);"'
     : isFutureDate
       ? ''
       : log
         ? ''
-        : 'style="background-color: #fff8dc;"'; // Yellow for absent
+        : 'style="background-color:rgb(255, 255, 255);"'; // Yellow for absent
 
 
 
