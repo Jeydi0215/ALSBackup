@@ -13,7 +13,19 @@ import Profile from "../components/Profile";
 import About from "../components/About";
 import ClockModal from "../components/ClockModal";
 // import EmployeeList from '../components/EmployeeList'
-import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc, GeoPoint } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  Timestamp,
+  serverTimestamp,
+  addDoc,
+  GeoPoint,
+} from "firebase/firestore";
 
 type Props = {
   handleLogoutClick: () => void;
@@ -63,8 +75,9 @@ const Home = ({
   pageNumber,
   handlePageClick,
 }: Props) => {
-
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
+    null
+  );
   const handlePageAndEmployeeClick = (pageNum: number, employeeId?: string) => {
     setSelectedEmployeeId(employeeId || null);
     handlePageClick(pageNum);
@@ -83,35 +96,37 @@ const Home = ({
       setIsOnline(true);
       syncOfflineData();
     };
-    
+
     const handleOffline = () => {
       setIsOnline(false);
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     // Load offline entries on component mount
     loadOfflineEntries();
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
   // Load offline entries from localStorage
   const loadOfflineEntries = () => {
     if (!currentUser) return;
-    
+
     try {
-      const stored = localStorage.getItem(`offline_clock_entries_${currentUser.uid}`);
+      const stored = localStorage.getItem(
+        `offline_clock_entries_${currentUser.uid}`
+      );
       if (stored) {
         const entries: OfflineClockEntry[] = JSON.parse(stored);
         setOfflineEntries(entries);
-        
+
         // Add offline entries to clock log for display
-        const offlineClockEntries: ClockLogEntry[] = entries.map(entry => ({
+        const offlineClockEntries: ClockLogEntry[] = entries.map((entry) => ({
           id: entry.id,
           uid: entry.uid,
           key: entry.key,
@@ -120,10 +135,10 @@ const Home = ({
           imageUrl: entry.imageUrl,
           status: "Pending (Offline)",
           isOffline: true,
-          location: entry.location
+          location: entry.location,
         }));
-        
-        setClockLog(prevLog => [...offlineClockEntries, ...prevLog]);
+
+        setClockLog((prevLog) => [...offlineClockEntries, ...prevLog]);
       }
     } catch (error) {
       console.error("Error loading offline entries:", error);
@@ -133,16 +148,16 @@ const Home = ({
   // Save offline entry to localStorage
   const saveOfflineEntry = (entry: OfflineClockEntry) => {
     if (!currentUser) return;
-    
+
     try {
       const key = `offline_clock_entries_${currentUser.uid}`;
       const existing = localStorage.getItem(key);
       const entries: OfflineClockEntry[] = existing ? JSON.parse(existing) : [];
-      
+
       entries.push(entry);
       localStorage.setItem(key, JSON.stringify(entries));
       setOfflineEntries(entries);
-      
+
       // Add to clock log for immediate display
       const displayEntry: ClockLogEntry = {
         id: entry.id,
@@ -153,10 +168,10 @@ const Home = ({
         imageUrl: entry.imageUrl,
         status: "Pending (Offline)",
         isOffline: true,
-        location: entry.location
+        location: entry.location,
       };
-      
-      setClockLog(prevLog => [displayEntry, ...prevLog]);
+
+      setClockLog((prevLog) => [displayEntry, ...prevLog]);
     } catch (error) {
       console.error("Error saving offline entry:", error);
     }
@@ -168,10 +183,10 @@ const Home = ({
 
     try {
       console.log(`Syncing ${offlineEntries.length} offline entries...`);
-      
+
       for (const entry of offlineEntries) {
         const manilaTime = new Date(entry.timestamp);
-        
+
         await addDoc(collection(db, "clockLog"), {
           uid: entry.uid,
           key: entry.key,
@@ -182,27 +197,31 @@ const Home = ({
           status: "pending",
           userFirstName: entry.userFirstName,
           userSurname: entry.userSurname,
-          location: entry.location ? {
-            coordinates: new GeoPoint(entry.location.latitude, entry.location.longitude),
-            address: entry.location.address,
-            timestamp: serverTimestamp()
-          } : null,
-          syncedFromOffline: true // Flag to indicate this was synced from offline
+          location: entry.location
+            ? {
+                coordinates: new GeoPoint(
+                  entry.location.latitude,
+                  entry.location.longitude
+                ),
+                address: entry.location.address,
+                timestamp: serverTimestamp(),
+              }
+            : null,
+          syncedFromOffline: true, // Flag to indicate this was synced from offline
         });
       }
 
       // Clear offline entries after successful sync
       localStorage.removeItem(`offline_clock_entries_${currentUser.uid}`);
       setOfflineEntries([]);
-      
+
       // Remove offline entries from display (they'll be replaced by Firebase data)
-      setClockLog(prevLog => prevLog.filter(entry => !entry.isOffline));
-      
+      setClockLog((prevLog) => prevLog.filter((entry) => !entry.isOffline));
+
       console.log("Offline data synced successfully!");
-      
+
       // Optional: Show success notification
       // You can add a toast notification here
-      
     } catch (error) {
       console.error("Error syncing offline data:", error);
       // Optional: Show error notification
@@ -227,8 +246,10 @@ const Home = ({
     if (!currentUser || !currentKey) return;
 
     const now = new Date();
-    const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    
+    const manilaTime = new Date(
+      now.toLocaleString("en-US", { timeZone: "Asia/Manila" })
+    );
+
     // If offline, save to localStorage
     if (!isOnline) {
       const offlineEntry: OfflineClockEntry = {
@@ -238,20 +259,20 @@ const Home = ({
         timeString: manilaTime.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
-          hour12: true
+          hour12: true,
         }),
         date: manilaTime.toLocaleDateString("en-US", {
           month: "long",
           day: "2-digit",
           year: "numeric",
         }),
-        imageUrl: imageUrl || '',
+        imageUrl: imageUrl || "",
         userFirstName: currentUser.userFirstName,
         userSurname: currentUser.userSurname,
         location,
-        timestamp: manilaTime.getTime()
+        timestamp: manilaTime.getTime(),
       };
-      
+
       saveOfflineEntry(offlineEntry);
       setShowCamera(false);
       return;
@@ -266,7 +287,7 @@ const Home = ({
         timeString: manilaTime.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
-          hour12: true
+          hour12: true,
         }),
         date: manilaTime.toLocaleDateString("en-US", {
           month: "long",
@@ -277,15 +298,17 @@ const Home = ({
         status: "pending",
         userFirstName: currentUser.userFirstName,
         userSurname: currentUser.userSurname,
-        location: location ? {
-          coordinates: new GeoPoint(location.latitude, location.longitude),
-          address: location.address,
-          timestamp: serverTimestamp()
-        } : null
+        location: location
+          ? {
+              coordinates: new GeoPoint(location.latitude, location.longitude),
+              address: location.address,
+              timestamp: serverTimestamp(),
+            }
+          : null,
       });
     } catch (error) {
       console.error("Error saving clock log:", error);
-      
+
       // If Firebase save fails, save offline as fallback
       const offlineEntry: OfflineClockEntry = {
         id: `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -294,20 +317,20 @@ const Home = ({
         timeString: manilaTime.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
-          hour12: true
+          hour12: true,
         }),
         date: manilaTime.toLocaleDateString("en-US", {
           month: "long",
           day: "2-digit",
           year: "numeric",
         }),
-        imageUrl: imageUrl || '',
+        imageUrl: imageUrl || "",
         userFirstName: currentUser.userFirstName,
         userSurname: currentUser.userSurname,
         location,
-        timestamp: manilaTime.getTime()
+        timestamp: manilaTime.getTime(),
       };
-      
+
       saveOfflineEntry(offlineEntry);
     } finally {
       setShowCamera(false);
@@ -331,7 +354,7 @@ const Home = ({
       case 4:
         return <About />;
       case 5:
-          return <Monitoring handlePageClick={handlePageAndEmployeeClick}/>;
+        return <Monitoring handlePageClick={handlePageAndEmployeeClick} />;
       // case 6:
       //     return <EmployeeList />;
       default:
@@ -339,7 +362,7 @@ const Home = ({
     }
   };
 
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const handleFirebaseLogout = async () => {
     try {
       if (currentUser) {
@@ -351,17 +374,17 @@ const Home = ({
         });
       }
       await signOut(auth);
-      navigate("/"); 
-      handleLogoutClick(); 
+      navigate("/");
+      handleLogoutClick();
     } catch (error: unknown) {
-      if (error instanceof Error){
+      if (error instanceof Error) {
         console.error("Error logging out: ", error.message);
-      } else{
+      } else {
         console.error("An unknown error occurred during logout.");
       }
     }
   };
-  
+
   // Firebase clock log listener
   useEffect(() => {
     if (!currentUser) return;
@@ -384,22 +407,24 @@ const Home = ({
         image: doc.data().image || null,
         status: doc.data().status || "Pending",
         location: doc.data().location,
-        isOffline: false
+        isOffline: false,
       })) as ClockLogEntry[];
-      
+
       // Combine Firebase logs with offline entries
-      const offlineClockEntries: ClockLogEntry[] = offlineEntries.map(entry => ({
-        id: entry.id,
-        uid: entry.uid,
-        key: entry.key,
-        timeString: entry.timeString,
-        date: entry.date,
-        imageUrl: entry.imageUrl,
-        status: "Pending (Offline)",
-        isOffline: true,
-        location: entry.location
-      }));
-      
+      const offlineClockEntries: ClockLogEntry[] = offlineEntries.map(
+        (entry) => ({
+          id: entry.id,
+          uid: entry.uid,
+          key: entry.key,
+          timeString: entry.timeString,
+          date: entry.date,
+          imageUrl: entry.imageUrl,
+          status: "Pending (Offline)",
+          isOffline: true,
+          location: entry.location,
+        })
+      );
+
       setClockLog([...offlineClockEntries, ...logs]);
     });
 
@@ -410,23 +435,27 @@ const Home = ({
     <div className={styles.Home}>
       {/* Optional: Connection status indicator */}
       {!isOnline && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: '#ff6b6b',
-          color: 'white',
-          padding: '8px',
-          textAlign: 'center',
-          zIndex: 1000,
-          fontSize: '14px'
-        }}>
-          You are currently offline. Clock entries will be saved locally and synced when connection is restored.
-          {offlineEntries.length > 0 && ` (${offlineEntries.length} entries pending sync)`}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: "#ff6b6b",
+            color: "white",
+            padding: "8px",
+            textAlign: "center",
+            zIndex: 1000,
+            fontSize: "14px",
+          }}
+        >
+          You are currently offline. Clock entries will be saved locally and
+          synced when connection is restored.
+          {offlineEntries.length > 0 &&
+            ` (${offlineEntries.length} entries pending sync)`}
         </div>
       )}
-      
+
       <Nav
         handleLogoutClick={handleLogoutClick}
         handlePageClick={handlePageClick}
@@ -449,7 +478,8 @@ const Home = ({
             <span>
               Make sure you've clocked in or out properly before logging out.
               Unsaved time entries might not be recorded.
-              {offlineEntries.length > 0 && ` You have ${offlineEntries.length} offline entries that will be synced when you're back online.`}
+              {offlineEntries.length > 0 &&
+                ` You have ${offlineEntries.length} offline entries that will be synced when you're back online.`}
             </span>
             <div className={styles.Logout_inner}>
               <button onClick={handleFirebaseLogout}>Logout</button>
