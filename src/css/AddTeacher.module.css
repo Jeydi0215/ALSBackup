@@ -1,0 +1,49 @@
+.AddTeacher {
+  position: absolute;
+  background-color: #fff;
+  border: solid 1px #333;
+  width: 30%;
+  margin: auto;
+  border-radius: 10px;
+  padding: 2rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.AddTeacher div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.AddTeacher label {
+  font-size: 0.85em;
+}
+.AddTeacher div input {
+  border: solid 1px #33333350;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+}
+
+.Head_add {
+  display: flex;
+  flex-direction: row !important;
+  justify-content: space-between;
+  align-items: center;
+}
+.Head_add h1 {
+  font-size: 1.5em;
+  color: #03396c;
+}
+
+.Head_add img {
+  width: 16px;
+}
+form button {
+  border-radius: 5px;
+  padding: 0.5rem;
+  text-align: center;
+  background-color: #03396c;
+  color: #fff;
+}
