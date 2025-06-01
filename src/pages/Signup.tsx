@@ -222,7 +222,7 @@ const Signup = () => {
           </div>
           <div className={styles.Form_button}>
             <button type="submit">Signup</button>
-            <button onClick={handleGoogleLogin}>Sign Up with Google</button>
+            {/* <button onClick={handleGoogleLogin}>Sign Up with Google</button> */}
           </div>
 
           {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}

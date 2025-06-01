@@ -21,6 +21,7 @@ th {
   -ms-transform: translateX(-5rem);
   -o-transform: translateX(-5rem);
   min-height: 90dvh;
+  position: relative;
 }
 
 @keyframes Page {
@@ -140,8 +141,8 @@ th {
 
 .Monitoring_left button {
   opacity: 0.55;
-  width: 10%;
-  padding: 1rem .5rem;
+  width: 15%;
+  padding: 1rem 0.5rem;
   color: #333;
   font-weight: 700;
   font-size: 1.2em;
@@ -195,65 +196,81 @@ th {
 }
 
 .EmployeeTracker,
-.Pending, .EmployeeList {
+.Pending,
+.EmployeeList {
   animation: 750ms forwards appear;
 }
-.EmployeeTracker{
+.EmployeeTracker {
   display: flex;
   flex-direction: column;
-  gap:1rem;
+  gap: 1rem;
 }
-.EmployeeTracker th{
-  color:#03396c;
+.EmployeeTracker th {
+  color: #03396c;
   background-color: #fff;
 }
-.EmployeeTracker h2{
-  color:#03396c;
+.EmployeeTracker h2 {
+  color: #03396c;
   padding-left: 1rem;
 }
 
-.EmployeeList{
+.EmployeeList {
   display: flex;
   flex-direction: column;
-  gap:1rem;
+  gap: 1rem;
   align-items: flex-end;
   justify-content: flex-end;
-
 }
 
-.EmployeeList td{
-  padding:1rem;
+.EmployeeList td {
+  padding: 1rem;
 }
-.EmployeeList th{
-  color:#03396C;
+.EmployeeList th {
+  color: #03396c;
   background-color: #fff;
 }
-.EmployeeList input{
-  border: solid 1px #03396C50;
+.EmployeeList input {
+  border: solid 1px #03396c50;
   border-radius: 5px 0 0 5px;
-  padding: .5rem.75rem;
-  width:20%;
-  height:48px;
+  padding: 0.5rem.75rem;
+  width: 20%;
+  height: 48px;
   margin-left: 2.5%;
 }
-.Search{
+.Search {
   display: flex;
   align-items: center;
-  width:100%;
-
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 1rem;
 }
-.Search svg{
-  height:48px;
-  width:48px;
-  padding:.75rem;
-  background-color: #03396C;
-  color:#fff;
+.Search button {
+  padding: 0.5rem 1rem;
+  background-color: #03396c;
+  color: #fff;
+  border-radius: 5px;
   cursor: pointer;
-    border-radius: 0 5px 5px 0;
 }
-.Pending th{
-   color: #03396C;
-   background-color: #fff;
+.Search_inner {
+  display: flex;
+  align-items: center;
+  width: 50%;
+}
+.Search_inner input {
+  width: 50%;
+}
+.Search svg {
+  height: 48px;
+  width: 48px;
+  padding: 0.75rem;
+  background-color: #03396c;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 0 5px 5px 0;
+}
+.Pending th {
+  color: #03396c;
+  background-color: #fff;
 }
 
 /* Add to your CSS */
@@ -292,14 +309,12 @@ th {
   .Widget_container {
     padding: 0 1rem;
   }
-  .Search input{
-    width:25%;
+  .Search input {
+    width: 25%;
   }
-  .Monitoring_left button{
+  .Monitoring_left button {
     width: 20%;
   }
-  
-  
 }
 
 @media (max-width: 431px) {
@@ -360,18 +375,18 @@ th {
     gap: 1rem;
     padding: 0 0.25rem;
   }
-  .EmployeeList td{
-    font-size: .85em;
+  .EmployeeList td {
+    font-size: 0.85em;
   }
-  .Search{
-    width:95%;
+  .Search {
+    width: 95%;
     margin: 0 auto;
   }
-  .EmployeeList input{
-    width:90%;
+  .EmployeeList input {
+    width: 90%;
     margin-left: 0;
   }
-  .Monitoring_left button{
-    padding:1rem;
+  .Monitoring_left button {
+    padding: 1rem;
   }
 }

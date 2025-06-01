@@ -455,10 +455,10 @@ const History = () => {
       (year === currentYear && monthIndex === currentMonth && day > currentDay);
 
     const rowStyle = isHoliday
-      ? 'style="background-color: #ffdede;"'
+      ? 'style="background-color:rgb(255, 255, 255);"'
       : isSunday
-        ? 'style="background-color: #f0f0f0;"'
-        : log ? '' : 'style="background-color: #fff8dc;"';
+        ? 'style="background-color:rgb(255, 255, 255);"'
+        : log ? '' : 'style="background-color:rgb(255, 255, 255);"';
 
     // Modified notes logic
     const notes = isHoliday
