@@ -11,7 +11,8 @@ import Dashboard from "../components/Dashboard";
 import History from "../components/History";
 import Profile from "../components/Profile";
 import Calendar from "../components/Calendar";
-import About from "../components/About";
+import EmployeeLocation from "../components/EmployeeLocation";
+
 import ClockModal from "../components/ClockModal";
 // import EmployeeList from '../components/EmployeeList'
 import {
@@ -358,6 +359,8 @@ const Home = ({
         return <Monitoring handlePageClick={handlePageAndEmployeeClick} />;
       case 6:
         return <Calendar />;
+      case 7:
+        return <EmployeeLocation />;
       default:
         return <History />;
     }
