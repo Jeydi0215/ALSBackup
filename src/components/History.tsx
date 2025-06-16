@@ -442,7 +442,7 @@ const History = () => {
     const day = i + 1;
     const dateObj = new Date(year, monthIndex, day);
     const dateStr = dayjs(dateObj).format("YYYY-MM-DD");
-    const readableDate = dayjs(dateObj).format("MMMM DD");
+    const readableDate = dayjs(dateObj).format("DD");
 
     const log = logMap[day];
     const isSunday = dateObj.getDay() === 0;
@@ -542,7 +542,7 @@ const History = () => {
     <div class="Verified">
       <span>VERIFIED as to the prescribed office hours</span>
       <div class="Verified-inner">
-        <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+        <span class="Bold">DR. ELEONOR C. CAYABYAB</span>
         <span class="Bold">Chief - Curriculum Implementation Division</span>
       </div>
     </div>

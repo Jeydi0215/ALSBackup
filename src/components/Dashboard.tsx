@@ -16,6 +16,7 @@ import {
   addDoc,
   GeoPoint,
   serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Papa from "papaparse";
@@ -974,7 +975,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
       const log = logMap[day];
       const readableDate = dateObj.toLocaleDateString("en-US", {
-        month: "long",
         day: "2-digit",
       });
 
@@ -982,12 +982,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       const isHoliday = holidayMap[dateStr];
 
       const rowStyle = isHoliday
-        ? 'style="background-color: #ffdede;"'
+        ? 'style="background-color:rgb(216, 210, 181);"'
         : isSunday
-        ? 'style="background-color: #f0f0f0;"'
+        ? 'style="background-color: #ffffff;"'
         : log
         ? ""
-        : 'style="background-color: #fff8dc;"'; // Yellow for absent
+        : 'style="background-color: #ffffff;"'; // Yellow for absent
 
       const notes = isHoliday
         ? holidayMap[dateStr]
@@ -1066,7 +1066,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     <div class="Verified">
       <span>VERIFIED as to the prescribed office hours</span>
       <div class="Verified-inner">
-        <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+        <span class="Bold">DR. ELEONOR C. CAYABYAB</span>
         <span class="Bold">Chief - Curriculum Implementation Division</span>
       </div>
     </div>
@@ -1355,10 +1355,62 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
   const weeklyReportData = getWeeklyReportData();
 
-  const [shareLocation, setShareLocation] = useState(false);
+  const [locationShared, setLocationShared] = useState(false);
+
+  const [shareLocationRequest, setShareLocationRequest] = useState(false);
+
+useEffect(() => {
+  const unsub = onSnapshot(doc(db, "system", "locationTrigger"), (docSnap) => {
+    const data = docSnap.data();
+    const request = data?.shareLocationRequest ?? false;
+    setShareLocationRequest(request);
+    
+
+    if (request) {
+      handleShareLocation(); 
+    }
+  });
+
+  return () => unsub();
+}, []);
+
   const handleShareLocation = () => {
-    setShareLocation(!shareLocation);
-  };
+    if (locationShared) return;
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      const user = currentUser;
+
+      if (!user) return;
+
+      await addDoc(collection(db, "locations"), {
+        uid: user.uid,
+        name: userData?.firstName || "Unknown User",
+        surname: userData?.surname,
+        email: user.email,
+        latitude,
+        longitude,
+        sharedAt: new Date(),
+      });
+
+      setLocationShared(true);
+      await setDoc(doc(db, "system", "locationTrigger"), {
+  shareLocationRequest: false,
+  timestamp: Date.now()
+});
+
+    },
+    (error) => {
+      console.error("Error sharing location:", error);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000
+    }
+  );
+};
+
+
 
   return (
     <div className={styles.Dashboard}>
@@ -1540,15 +1592,15 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             ))}
           </div>
 
-          {shareLocation ? (
-            <button onClick={handleShareLocation} class={styles.Location}>
-              Location Shared
-            </button>
-          ) : (
-            <button onClick={handleShareLocation} class={styles.Location2}>
-              Share Location
-            </button>
-          )}
+          {shareLocationRequest && (
+  locationShared ? (
+    <button className={styles.Location}>Location Shared</button>
+  ) : (
+    <button onClick={handleShareLocation} className={styles.Location2}>
+      Share Location
+    </button>
+  )
+)}
         </div>
       )}
 

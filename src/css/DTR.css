@@ -9,26 +9,31 @@
 }
 
 body {
-  padding: 2rem;
+  padding: 0;
+  margin: 0;
   background: white;
+  font-size: 11px;
 }
 
 .DTR {
-  /* page-break-after: always; */
   width: 100%;
-  max-width: 800px;
-  margin: auto;
-  padding: 2rem;
+  max-width: 720px; /* slightly narrower for print margin */
+  margin: 0 auto;
+  padding: 24px 32px;
+  background: white;
   box-sizing: border-box;
+  page-break-inside: avoid;
 }
 
+/* Header */
 .Civil {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 12px;
+  font-size: 11px;
 }
 
+/* Text */
 .Bold {
   font-weight: 700;
 }
@@ -37,38 +42,52 @@ body {
   text-decoration: underline;
 }
 
-.Daily, .Daily-inner, .Verified-inner, .Certify {
+/* Centered Blocks */
+.Daily,
+.Daily-inner,
+.Certify,
+.Verified-inner {
   display: flex;
   flex-direction: column;
-  text-align: center;
   align-items: center;
-  gap: 0.25rem;
+  text-align: center;
+  gap: 2px;
+  font-size: 11px;
 }
 
-.Month, .Table {
-  margin-top: 1.5rem;
+/* Month Section */
+.Month {
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 8px;
 }
 
 .Month-inner {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  width: 100%;
-  gap: 0.5rem 2rem; 
+  gap: 4px 16px;
+  font-size: 10.5px;
 }
 
+/* Table Wrapper */
+.Table {
+  margin-top: 16px;
+  font-size: 10.5px;
+}
+
+/* Table Styles */
 .Table table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  page-break-inside: avoid;
+  font-size: 9.5px;
 }
 
-.Table th, .Table td {
-  border: 1px solid #333;
-  padding: 0.5rem;
+.Table th,
+.Table td {
+  border: 1px solid #000;
+  padding: 4px;
   text-align: center;
   word-wrap: break-word;
 }
@@ -77,12 +96,74 @@ body {
   page-break-inside: avoid;
 }
 
+/* Signatures */
 .Signature {
-  border-bottom: 1px solid #333;
-  width: 100%;
-  margin-top: 1.25rem;
+  border-bottom: 1px solid #000;
+  width: 80%;
+  margin: 20px 0 8px 0;
+}
+
+/* Certify and Verified Sections */
+.Certify {
+  margin-top: 16px;
+  font-size: 10.5px;
+  text-align: center;
 }
 
 .Verified {
-  margin-top: 1.5rem;
+  margin-top: 16px;
+  font-size: 10.5px;
+  text-align: center;
+}
+
+.Table table,
+.Table th,
+.Table td {
+  border-radius: 0;
+}
+
+.Table th {
+  background-color: white;
+  color: #000; 
+}
+
+/* Print Styles */
+@media print {
+  @page {
+    size: A4;
+    margin: 20mm 15mm; /* ~0.8in sides */
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  body {
+    transform: scale(1);
+    transform-origin: top left;
+  }
+
+  .DTR {
+    max-width: none;
+    width: auto;
+    padding: 0;
+    margin: 0 auto;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .Table table {
+    font-size: 9.5px;
+  }
+
+  .Table,
+  .Table table,
+  .Table th,
+  .Table td,
+  .Table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }

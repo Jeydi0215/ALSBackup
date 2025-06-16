@@ -134,6 +134,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
             </svg>
             <span>Calendar</span>
           </li> )}
+          {currentUser?.admin === true && (
           <li onClick={() => handlePageClick(7)}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -155,7 +156,7 @@ const Nav = ({ handleLogoutClick, handlePageClick }: Props) => {
               <path d="M19 18v.01" />
             </svg>
             <span>Location</span>
-          </li>
+          </li> )}
         </ul>
       </div>
 
