@@ -6,65 +6,7 @@ import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { imageDb } from "../firebase";
 import * as faceapi from "face-api.js";
 import { getOpenCageKey } from '../utils/apiKeys';
-
-// IndexedDB Service
-const AttendanceDB = {
-  dbName: 'AttendanceDB',
-  storeName: 'pendingLogs',
-  version: 1,
-
-  async init(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, this.version);
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
-        }
-      };
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(new Error('Failed to open database'));
-    });
-  },
-
-  async saveLog(data: any): Promise<number> {
-    const db = await this.init();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(this.storeName, 'readwrite');
-      const store = tx.objectStore(this.storeName);
-      const request = store.add(data);
-
-      request.onsuccess = () => resolve(request.result as number);
-      request.onerror = () => reject(new Error('Failed to save log'));
-    });
-  },
-
-  async getLogs(): Promise<any[]> {
-    const db = await this.init();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(this.storeName, 'readonly');
-      const store = tx.objectStore(this.storeName);
-      const request = store.getAll();
-
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(new Error('Failed to get logs'));
-    });
-  },
-
-  async deleteLog(id: number): Promise<void> {
-    const db = await this.init();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(this.storeName, 'readwrite');
-      const store = tx.objectStore(this.storeName);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error('Failed to delete log'));
-    });
-  }
-};
+import { savePendingLog, getPendingLogs, deletePendingLog } from '../utils/indexedDB';
 
 type Props = {
   handleCameraClick: () => void;
@@ -195,23 +137,33 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // Sync pending logs when online
+  // IMPROVED sync pending logs using safer IndexedDB functions
   const syncPendingLogs = async () => {
     if (!isOnline) return;
 
     try {
-      // Sync IndexedDB records
-      const pendingLogs = await AttendanceDB.getLogs();
+      console.log("🔄 Starting ClockModal sync...");
+      
+      // Use the safer getPendingLogs function
+      const pendingLogs = await getPendingLogs();
       
       // Also sync localStorage fallback records
       await syncLocalStorageFallback();
       
-      if (pendingLogs.length === 0) return;
+      if (pendingLogs.length === 0) {
+        console.log("✅ No pending logs to sync in ClockModal");
+        return;
+      }
 
       setSyncStatus(`Syncing ${pendingLogs.length} pending attendance records...`);
 
+      let successCount = 0;
+      let errorCount = 0;
+      const processedItems: any[] = [];
+
       for (const log of pendingLogs) {
         try {
+          console.log("🔄 Syncing ClockModal log:", log.id);
           const imageUrl = await uploadToFirebase(log.image);
           await onSubmitClockLog(
             log.image,
@@ -219,16 +171,40 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             imageUrl,
             log.location
           );
-          await AttendanceDB.deleteLog(log.id);
+          processedItems.push(log);
+          successCount++;
         } catch (error) {
           console.error("Failed to sync log:", error);
+          errorCount++;
         }
       }
 
-      setSyncStatus("All pending records synced successfully!");
-      showSuccess("🎉 All offline records have been synced!");
+      // Remove successfully synced items using the safer delete function
+      for (const item of processedItems) {
+        try {
+          await deletePendingLog(item.id);
+          console.log(`🗑️ Deleted synced log: ${item.id}`);
+        } catch (error) {
+          console.error("Failed to delete synced log:", error);
+        }
+      }
+
+      if (successCount > 0) {
+        setSyncStatus(`Successfully synced ${successCount} records!`);
+        showSuccess(`🎉 ${successCount} offline records have been synced!`);
+        
+        // Trigger sync event for Dashboard
+        window.dispatchEvent(new CustomEvent('triggerOfflineSync'));
+      }
+      
+      if (errorCount > 0) {
+        setSyncStatus(`${errorCount} records failed to sync`);
+      }
+
+      console.log(`✅ ClockModal sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+
     } catch (error) {
-      console.error("Sync error:", error);
+      console.error("❌ ClockModal sync error:", error);
       setSyncStatus("Failed to sync some records");
     } finally {
       setTimeout(() => setSyncStatus(""), 3000);
@@ -350,6 +326,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
+  // IMPROVED handleSubmit function with safer IndexedDB usage
   const handleSubmit = async () => {
     if (!capturedImage || !canvasRef.current) {
       alert("Please take a photo before submitting.");
@@ -400,21 +377,34 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           const imageUrl = await uploadToFirebase(capturedImage);
           await onSubmitClockLog(capturedImage, timestamp, imageUrl, shareLocation ? location : undefined);
           setSyncStatus("Attendance recorded successfully!");
+          showSuccess("✅ Attendance recorded successfully!");
         } catch (onlineError) {
           console.error("Online submission failed, saving offline:", onlineError);
           try {
-            await AttendanceDB.saveLog(logData);
+            // Use the safer savePendingLog function
+            await savePendingLog(logData);
             setSyncStatus("Connection failed - saved offline, will sync when online");
+            showSuccess("📱 Saved offline - will sync when online");
           } catch (dbError) {
-            console.error("Failed to save offline:", dbError);
-            throw new Error("Failed to save attendance record");
+            console.error("Failed to save to IndexedDB:", dbError);
+            // Try localStorage as fallback
+            try {
+              const fallbackKey = `attendance_${Date.now()}`;
+              localStorage.setItem(fallbackKey, JSON.stringify(logData));
+              setSyncStatus("Saved locally - will sync when online");
+              showSuccess("💾 Saved locally - will sync when online");
+            } catch (storageError) {
+              console.error("All storage methods failed:", storageError);
+              throw new Error("Unable to save attendance record");
+            }
           }
         }
       } else {
-        // Offline mode - save to IndexedDB
+        // Offline mode - save using safer IndexedDB function
         try {
-          await AttendanceDB.saveLog(logData);
+          await savePendingLog(logData);
           setSyncStatus("Saved offline - will sync when online");
+          showSuccess("📱 Saved offline - will sync when online");
           console.log("Successfully saved offline attendance record");
         } catch (dbError) {
           console.error("IndexedDB save failed:", dbError);
@@ -423,6 +413,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             const fallbackKey = `attendance_${Date.now()}`;
             localStorage.setItem(fallbackKey, JSON.stringify(logData));
             setSyncStatus("Saved locally - will sync when online");
+            showSuccess("💾 Saved locally - will sync when online");
             console.log("Saved to localStorage as fallback");
           } catch (storageError) {
             console.error("All storage methods failed:", storageError);
@@ -507,6 +498,20 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           </div>
         )}
 
+        {showSuccessMessage && (
+          <div className={styles.SuccessMessage} style={{
+            background: '#d4edda',
+            border: '1px solid #c3e6cb',
+            color: '#155724',
+            padding: '10px',
+            borderRadius: '4px',
+            margin: '10px 0',
+            animation: 'fadeIn 0.3s ease-in'
+          }}>
+            <p>{successMessage}</p>
+          </div>
+        )}
+
         <div className={styles.Button}>
           <div className={styles.Button_inner}>
             <button
@@ -532,6 +537,13 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           </button>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };

@@ -304,7 +304,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
   };
 
-  // Updated syncPendingData function using your indexeddb.tsx functions
+  // FIXED syncPendingData function with all improvements
   const syncPendingData = async (isManualSync = false) => {
     try {
       if (isManualSync) {
@@ -330,6 +330,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       let successCount = 0;
       let errorCount = 0;
       const errors = [];
+      const processedItems: any[] = []; // Track successfully processed items
 
       // Process each item sequentially
       for (const item of allPendingItems) {
@@ -350,38 +351,30 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             throw new Error(`Missing required fields for item ${localId}`);
           }
 
-          // Create proper Timestamp
+          // Create proper Timestamp - FIX: Handle different time formats correctly
           let firestoreTime;
-
-          // Handle different timestamp formats
-          if (
-            rawFirebaseData.time &&
-            typeof rawFirebaseData.time === "object" &&
-            rawFirebaseData.time.seconds
-          ) {
-            // Already a Timestamp-like object
-            firestoreTime = new Timestamp(
-              rawFirebaseData.time.seconds,
-              rawFirebaseData.time.nanoseconds || 0
-            );
-          } else if (rawFirebaseData.time && rawFirebaseData.time._seconds) {
-            // Serialized Timestamp
-            firestoreTime = new Timestamp(
-              rawFirebaseData.time._seconds,
-              rawFirebaseData.time._nanoseconds || 0
-            );
-          } else if (rawFirebaseData.createdAt) {
-            // Use createdAt as fallback
-            firestoreTime = Timestamp.fromDate(
-              new Date(rawFirebaseData.createdAt)
-            );
+          if (item.isFromLocalStorage && item.timestamp) {
+            // From localStorage format - timestamp is a number
+            firestoreTime = Timestamp.fromDate(new Date(item.timestamp));
+          } else if (item.time) {
+            // From IndexedDB format - handle Timestamp objects
+            if (item.time instanceof Timestamp) {
+              firestoreTime = item.time;
+            } else if (typeof item.time === 'object' && (item.time.seconds || item.time._seconds)) {
+              const seconds = item.time.seconds || item.time._seconds;
+              const nanoseconds = item.time.nanoseconds || item.time._nanoseconds || 0;
+              firestoreTime = new Timestamp(seconds, nanoseconds);
+            } else {
+              // Fallback: try to parse as date
+              firestoreTime = Timestamp.fromDate(new Date(item.time));
+            }
           } else {
-            // Create new timestamp based on current time
+            // No time data available, use current time
             firestoreTime = Timestamp.now();
           }
 
           // Build clean data object for Firebase
-          const cleanedData = {
+          const cleanedData: any = {
             uid: String(item.uid),
             key: String(item.key),
             time: firestoreTime,
@@ -413,49 +406,80 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             };
           }
 
-          console.log("Cleaned data for Firebase:", cleanedData);
-
-          // Add to Firebase with timeout
+          console.log("📤 Sending to Firebase:", cleanedData);
+          
+          // Add to Firebase with timeout - FIX: Proper error handling
           const docRef = await Promise.race([
             addDoc(collection(db, "clockLog"), cleanedData),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Firebase timeout")), 10000)
-            ),
+            new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('Firebase timeout after 15 seconds')), 15000)
+            )
           ]);
-
-          console.log("Document added with ID:", docRef.id);
-
-          // Remove from local storage after successful Firebase write
-          if (isFromLocalStorage) {
-            localStorage.removeItem(localId);
-            console.log(`Removed from localStorage: ${localId}`);
-          } else {
-            await offlineDB.removeSyncedItem(localId);
-            console.log(`Removed from IndexedDB: ${localId}`);
-          }
-
+          
+          console.log("✅ Document added with ID:", docRef.id);
+          
+          // Mark item as successfully processed
+          processedItems.push(item);
           successCount++;
-
+          
           // Small delay between operations to prevent rate limiting
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        } catch (error) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (error: any) {
           console.error(`❌ Error syncing item ${item.id}:`, error);
           errors.push(`${item.id}: ${error.message}`);
           errorCount++;
-
+          
           // Continue with next item instead of stopping
           continue;
         }
       }
 
-      console.log(
-        `Sync complete. Success: ${successCount}, Errors: ${errorCount}`
-      );
+      // Remove successfully synced items from storage
+      if (processedItems.length > 0) {
+        console.log(`🗑️ Removing ${processedItems.length} successfully synced items from storage...`);
+        
+        // Remove from localStorage
+        const localStorageProcessed = processedItems.filter(item => item.isFromLocalStorage);
+        if (localStorageProcessed.length > 0 && currentUser) {
+          const localStorageKey = `offline_clock_entries_${currentUser.uid}`;
+          const stored = localStorage.getItem(localStorageKey);
+          if (stored) {
+            try {
+              const entries = JSON.parse(stored);
+              const processedIds = localStorageProcessed.map(item => item.id);
+              const filteredEntries = entries.filter((entry: any) => !processedIds.includes(entry.id));
+              
+              if (filteredEntries.length === 0) {
+                localStorage.removeItem(localStorageKey);
+              } else {
+                localStorage.setItem(localStorageKey, JSON.stringify(filteredEntries));
+              }
+              console.log(`🗑️ Removed ${localStorageProcessed.length} items from localStorage`);
+            } catch (error) {
+              console.error("Error updating localStorage:", error);
+            }
+          }
+        }
 
+        // Remove from IndexedDB - only if we had IndexedDB items processed
+        const indexedDBProcessed = processedItems.filter(item => !item.isFromLocalStorage);
+        if (indexedDBProcessed.length > 0) {
+          try {
+            await clearPendingLogs();
+            console.log("🗑️ Cleared all IndexedDB entries");
+          } catch (error) {
+            console.error("Error clearing IndexedDB:", error);
+          }
+        }
+      }
+      
+      console.log(`✅ Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      
       if (errors.length > 0) {
         console.error("Sync errors:", errors);
       }
-
+      
       if (isManualSync) {
         if (errorCount === 0) {
           setSyncStatus("success");
@@ -469,10 +493,16 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           );
         }
       }
-
+      
       // Update pending count
       await checkPendingItems();
-    } catch (error) {
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('syncCompleted', { 
+        detail: { successCount, errorCount } 
+      }));
+      
+    } catch (error: any) {
       console.error("❌ Error during offline sync:", error);
       if (isManualSync) {
         setSyncStatus("error");
@@ -500,16 +530,24 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     await syncPendingData(true);
   };
 
-  // Updated useEffect for online/offline handling
+  // IMPROVED useEffect for online/offline handling
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       console.log("🌐 Connection restored - going online");
       setIsOnline(true);
-      setTimeout(() => {
-        syncPendingData();
-      }, 1000);
+      
+      // Wait a bit for connection to stabilize, then sync
+      setTimeout(async () => {
+        console.log("🔄 Auto-syncing after connection restored...");
+        try {
+          await syncPendingData();
+          console.log("✅ Auto-sync completed successfully");
+        } catch (error) {
+          console.error("❌ Auto-sync failed:", error);
+        }
+      }, 2000); // Increased delay for connection stability
     };
-
+    
     const handleOffline = () => {
       console.log("📱 Connection lost - going offline");
       setIsOnline(false);
@@ -517,42 +555,84 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     };
 
     // Add custom event listener for sync triggers from other components
-    const handleTriggerSync = () => {
+    const handleTriggerSync = async () => {
       console.log("🔔 Sync triggered by external event");
       if (isOnline) {
-        syncPendingData();
+        try {
+          await syncPendingData();
+          console.log("✅ External sync completed successfully");
+        } catch (error) {
+          console.error("❌ External sync failed:", error);
+        }
+      } else {
+        console.log("⚠️ Cannot sync - currently offline");
       }
     };
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    // Add visibility change handler to sync when app becomes visible
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && navigator.onLine && isOnline) {
+        console.log("👁️ App became visible - checking for pending sync");
+        setTimeout(async () => {
+          try {
+            await checkPendingItems();
+            if (pendingCount > 0) {
+              console.log(`🔄 Found ${pendingCount} pending items, syncing...`);
+              await syncPendingData();
+            }
+          } catch (error) {
+            console.error("❌ Visibility sync failed:", error);
+          }
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('triggerOfflineSync', handleTriggerSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Initial setup
     console.log("🚀 Dashboard mounted, initializing...");
-
-    // Initialize IndexedDB and check pending items
-    offlineDB
-      .init()
-      .then(() => {
-        checkPendingItems();
-        // Only auto-sync if we're online
+    console.log("🔌 Initial online status:", navigator.onLine);
+    
+    // Check pending items and auto-sync if online
+    const initializeSync = async () => {
+      try {
+        await checkPendingItems();
         if (navigator.onLine) {
-          syncPendingData();
+          console.log("🔄 Initial sync check...");
+          await syncPendingData();
         }
-      })
-      .catch((error) => {
-        console.error("Failed to initialize IndexedDB:", error);
-      });
+      } catch (error) {
+        console.error("❌ Initial sync failed:", error);
+      }
+    };
+    
+    initializeSync();
 
-    // Check pending items periodically
-    const intervalId = setInterval(checkPendingItems, 10000);
+    // Check pending items periodically (every 30 seconds instead of 10)
+    const intervalId = setInterval(async () => {
+      try {
+        await checkPendingItems();
+        // Also try to sync if online and there are pending items
+        if (navigator.onLine && isOnline && pendingCount > 0) {
+          console.log("⏰ Periodic sync check - found pending items");
+          await syncPendingData();
+        }
+      } catch (error) {
+        console.error("❌ Periodic check failed:", error);
+      }
+    }, 30000);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('triggerOfflineSync', handleTriggerSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(intervalId);
     };
-  }, [isOnline]);
+  }, [isOnline, pendingCount]); // Added pendingCount as dependency
 
   const parseTimeToMinutes = (timeStr: string): number => {
     if (!timeStr) return 0;
@@ -840,41 +920,48 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   };
 
   const calculateUndertime = (entry: WeeklyReportDay): string => {
-    const parseMinutes = (t: string): number => {
-      const [h, mPart] = t
-        .replace("AM", "")
-        .replace("PM", "")
-        .trim()
-        .split(":");
-      const m = parseInt(mPart || "0");
-      let hour = parseInt(h || "0");
+    const expectedMinutes = 8 * 60;
 
-      const isPM = /PM/i.test(t);
-      if (isPM && hour < 12) hour += 12;
-      if (!isPM && hour === 12) hour = 0;
-
-      return hour * 60 + m;
+    const parseMinutes = (time: string | undefined): number => {
+      if (!time) return 0;
+      const [timePart, period] = time.split(" ");
+      const [hours, minutes] = timePart.split(":").map(Number);
+      let h = hours;
+      if (period === "PM" && h < 12) h += 12;
+      if (period === "AM" && h === 12) h = 0;
+      return h * 60 + minutes;
     };
 
     if (!entry.clockIn || !entry.clockOut) return "-";
 
-    const start = parseMinutes(entry.clockIn);
-    const end = parseMinutes(entry.clockOut);
+    const rawClockIn = parseMinutes(entry.clockIn);
+    const rawClockOut = parseMinutes(entry.clockOut);
 
-    let worked = end - start;
+    // 🛑 Edge case: identical time
+    if (rawClockIn === rawClockOut) return "No Working Hours";
 
-    if (entry.breakIn && entry.breakOut) {
-      worked -= parseMinutes(entry.breakOut) - parseMinutes(entry.breakIn);
+    const start = Math.max(rawClockIn, 8 * 60);
+    let end = rawClockOut;
+
+    if (end >= 17 * 60 && end <= 20 * 60) end = 17 * 60;
+
+    // Deduct break
+    if (entry.breakOut && entry.breakIn) {
+      const bOut = parseMinutes(entry.breakOut);
+      const bIn = parseMinutes(entry.breakIn);
+      if (bOut && bIn && bIn > bOut) {
+        end -= (bIn - bOut);
+      }
     }
 
-    const expected = 8 * 60;
-    const undertime = expected - worked;
+    const total = end - start;
+    const diff = expectedMinutes - total;
 
-    if (undertime <= 0) return "-";
+    if (diff <= 0) return "-";
 
-    const hours = Math.floor(undertime / 60);
-    const minutes = undertime % 60;
-    return `${hours > 0 ? `${hours}h ` : ""}${minutes}m`;
+    const hrs = Math.floor(diff / 60);
+    const mins = diff % 60;
+    return `${hrs > 0 ? `${hrs}h ` : ""}${mins}m`;
   };
 
   const getMonthlyGroupedLogs = (): Record<string, WeeklyReportDay[]> => {
@@ -981,97 +1068,102 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       const isSunday = dateObj.getDay() === 0;
       const isHoliday = holidayMap[dateStr];
-
-      const rowStyle = isHoliday
-        ? 'style="background-color:rgb(216, 210, 181);"'
-        : isSunday
-        ? 'style="background-color: #ffffff;"'
-        : log
-        ? ""
-        : 'style="background-color: #ffffff;"'; // Yellow for absent
+      const isFutureDate = dateObj > new Date();
 
       const notes = isHoliday
         ? holidayMap[dateStr]
         : isSunday
-        ? "Sunday"
-        : log
-        ? ""
-        : "Absent";
+          ? "Sunday"
+          : isFutureDate
+            ? "—"
+            : log
+              ? ""
+              : "Absent";
+
+      const rowStyle = isHoliday
+        ? 'style="background-color: #ffff;"'
+        : isSunday
+          ? 'style="background-color:rgb(255, 255, 255);"'
+          : isFutureDate
+            ? ''
+            : log
+              ? ''
+              : 'style="background-color:rgb(255, 255, 255);"'; // Yellow for absent
 
       return `
-      <tr ${rowStyle}>
-        <td>${readableDate}</td>
-        <td>${log?.clockIn || "-"}</td>
-        <td>${log?.breakIn || "-"}</td>
-        <td>${log?.breakOut || "-"}</td>
-        <td>${log?.clockOut || "-"}</td>
-        <td>${notes || calculateUndertime(log)}</td>
-      </tr>`;
+        <tr ${rowStyle}>
+          <td>${readableDate}</td>
+          <td>${log?.clockIn || "-"}</td>
+          <td>${log?.breakIn || "-"}</td>
+          <td>${log?.breakOut || "-"}</td>
+          <td>${log?.clockOut || "-"}</td>
+          <td>${notes || calculateUndertime(log)}</td>
+        </tr>`;
     }).join("");
 
     return `
-  <div class="DTR">
-    <div class="Civil">
-      <span>Civil Service Form No. 48</span>
-      <span>1-136</span>
-    </div>
-
-    <div class="Daily">
-      <span class="Bold">DAILY TIME RECORD</span>
-      <div class="Daily-inner">
-        <span class="Bold Name">${name}</span>
-        <span>${position}</span>
-        <span>${office}</span>
+    <div class="DTR">
+      <div class="Civil">
+        <span>Civil Service Form No. 48</span>
+        <span>1-136</span>
       </div>
-    </div>
 
-    <div class="Month">
-      <span>For the Month of: ${month}</span>
-      <div class="Month-inner">
-        <span>Official Hours of:</span>
-        <span>Regular Days:</span>
-        <span>Arrival and Departure:</span>
-        <span>Saturdays:</span>
+      <div class="Daily">
+        <span class="Bold">DAILY TIME RECORD</span>
+        <div class="Daily-inner">
+          <span class="Bold Name">${name}</span>
+          <span>${position}</span>
+          <span>${office}</span>
+        </div>
       </div>
-    </div>
 
-    <div class="Table">
-      <span class="Bold">PERMANENT</span>
-      <table border="1" cellpadding="4" cellspacing="0">
-        <thead>
-          <tr>
-            <th rowspan="2">Date</th>
-            <th colspan="2">AM</th>
-            <th colspan="2">PM</th>
-            <th rowspan="2">UNDERTIME</th>
-          </tr>
-          <tr>
-            <th>ARRIVAL</th>
-            <th>DEPARTURE</th>
-            <th>ARRIVAL</th>
-            <th>DEPARTURE</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-
-    <div class="Certify">
-      <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
-      <span class="Signature"></span>
-      <span>Reviewed by:</span>
-      <span class="Signature"></span>
-      <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
-    </div>
-
-    <div class="Verified">
-      <span>VERIFIED as to the prescribed office hours</span>
-      <div class="Verified-inner">
-        <span class="Bold">DR. ELEONOR C. CAYABYAB</span>
-        <span class="Bold">Chief - Curriculum Implementation Division</span>
+      <div class="Month">
+        <span>For the Month of: ${month}</span>
+        <div class="Month-inner">
+          <span>Official Hours of:</span>
+          <span>Regular Days:</span>
+          <span>Arrival and Departure:</span>
+          <span>Saturdays:</span>
+        </div>
       </div>
-    </div>
-  </div>`;
+
+      <div class="Table">
+        <span class="Bold">PERMANENT</span>
+        <table border="1" cellpadding="4" cellspacing="0">
+          <thead>
+            <tr>
+              <th rowspan="2">Date</th>
+              <th colspan="2">AM</th>
+              <th colspan="2">PM</th>
+              <th rowspan="2">UNDERTIME</th>
+            </tr>
+            <tr>
+              <th>ARRIVAL</th>
+              <th>DEPARTURE</th>
+              <th>ARRIVAL</th>
+              <th>DEPARTURE</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="Certify">
+        <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
+        <span class="Signature"></span>
+        <span>Reviewed by:</span>
+        <span class="Signature"></span>
+        <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
+      </div>
+
+      <div class="Verified">
+        <span>VERIFIED as to the prescribed office hours</span>
+        <div class="Verified-inner">
+          <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+          <span class="Bold">Chief - Curriculum Implementation Division</span>
+        </div>
+      </div>
+    </div>`;
   };
 
   const fetchPhilippineHolidays = async (): Promise<Record<string, string>> => {
