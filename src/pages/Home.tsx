@@ -10,7 +10,9 @@ import Monitoring from "../components/Monitoring";
 import Dashboard from "../components/Dashboard";
 import History from "../components/History";
 import Profile from "../components/Profile";
-import About from "../components/About";
+import Calendar from "../components/Calendar";
+import EmployeeLocation from "../components/EmployeeLocation";
+
 import ClockModal from "../components/ClockModal";
 // import EmployeeList from '../components/EmployeeList'
 import { doc, updateDoc, collection, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, addDoc, GeoPoint } from "firebase/firestore";
@@ -371,7 +373,11 @@ const Home = ({
       case 4:
         return <About />;
       case 5:
-          return <Monitoring handlePageClick={handlePageAndEmployeeClick}/>;
+        return <Monitoring handlePageClick={handlePageAndEmployeeClick} />;
+      case 6:
+        return <Calendar />;
+      case 7:
+        return <EmployeeLocation />;
       default:
         return <History />;
     }

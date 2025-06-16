@@ -1,0 +1,152 @@
+.Calendar {
+  width: 100%;
+  min-height: 90dvh;
+  flex-direction: column;
+  padding: 0.75rem 0.75rem 0.75rem 0;
+  opacity: 0;
+  filter: blur(10px);
+  -webkit-filter: blur(10px);
+  animation: 0.5s forwards Page;
+  transform: translateX(-5rem);
+  -webkit-animation: 0.5s forwards Page;
+  -webkit-transform: translateX(-5rem);
+  -moz-transform: translateX(-5rem);
+  -ms-transform: translateX(-5rem);
+  -o-transform: translateX(-5rem);
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+@keyframes Page {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+    -webkit-filter: blur(0);
+    -webkit-transform: translateX(0);
+    -moz-transform: translateX(0);
+    -ms-transform: translateX(0);
+    -o-transform: translateX(0);
+  }
+}
+
+.Calendar_title {
+  padding: 1rem 0 1rem 1rem;
+  background-color: #03396c;
+  width: 100% !important;
+  color: #fff;
+  font-size: 1.5em;
+  width: 100%;
+  border-radius: 5px;
+}
+.Calendar_button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.Calendar_button span {
+  font-size: 1.2em;
+  color: #03396c;
+  font-weight: bold;
+  opacity: 0.75;
+}
+
+.Calendar_button button {
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  color: #fff;
+  background-color: #03396c;
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+.Calendar_button input {
+  padding: 0.5rem 1rem;
+  color: #03396c;
+}
+
+.Calendar_inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.Holiday {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+}
+.Holiday:nth-child(odd) {
+  background-color: #03396c;
+  color: #fff;
+}
+
+.Holiday img {
+  width: 32px;
+}
+.Holiday_con {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.Add_holiday {
+  position: fixed;
+
+  top: 50%;
+  left: 50%;
+
+  transform: translate(-50%, -50%);
+
+  z-index: 2;
+
+  width: 40%;
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  border: solid 1px #03396c;
+  animation: Appear 500ms ease forwards;
+  text-align: center;
+  color: #03396c;
+}
+
+@keyframes Appear {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0px);
+  }
+}
+
+.Add_button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.Add_button button {
+  padding: 0.5rem 1rem;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.Add_button button:first-child {
+  color: #940000;
+  outline: solid 1px #940000;
+}
+
+.Add_button button:nth-child(2) {
+  color: #fff;
+  background-color: #03396c;
+}
