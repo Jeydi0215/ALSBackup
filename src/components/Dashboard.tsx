@@ -297,7 +297,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       
       const totalCount = indexedDBItems.length + localStorageCount;
       setPendingCount(totalCount);
-      console.log(`📊 Updated pending count: ${totalCount} (IndexedDB: ${indexedDBItems.length}, localStorage: ${localStorageCount})`);
+      console.log(`Updated pending count: ${totalCount} (IndexedDB: ${indexedDBItems.length}, localStorage: ${localStorageCount})`);
     } catch (error) {
       console.error("Error checking pending items:", error);
       setPendingCount(0);
@@ -316,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       const allPendingItems = await offlineDB.getAllPendingItems();
 
       if (allPendingItems.length === 0) {
-        console.log("✅ No offline records to sync.");
+        console.log("No offline records to sync.");
         if (isManualSync) {
           setSyncStatus("success");
           setTimeout(() => setSyncStatus("idle"), 2000);
@@ -325,7 +325,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         return;
       }
 
-      console.log(`🔄 Syncing ${allPendingItems.length} offline records...`);
+      console.log(`Syncing ${allPendingItems.length} offline records...`);
 
       let successCount = 0;
       let errorCount = 0;
@@ -406,7 +406,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             };
           }
 
-          console.log("📤 Sending to Firebase:", cleanedData);
+          console.log("Sending to Firebase:", cleanedData);
           
           // Add to Firebase with timeout - FIX: Proper error handling
           const docRef = await Promise.race([
@@ -416,7 +416,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             )
           ]);
           
-          console.log("✅ Document added with ID:", docRef.id);
+          console.log("Document added with ID:", docRef.id);
           
           // Mark item as successfully processed
           processedItems.push(item);
@@ -426,7 +426,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           await new Promise(resolve => setTimeout(resolve, 200));
           
         } catch (error: any) {
-          console.error(`❌ Error syncing item ${item.id}:`, error);
+          console.error(`Error syncing item ${item.id}:`, error);
           errors.push(`${item.id}: ${error.message}`);
           errorCount++;
           
@@ -437,7 +437,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       // Remove successfully synced items from storage
       if (processedItems.length > 0) {
-        console.log(`🗑️ Removing ${processedItems.length} successfully synced items from storage...`);
+        console.log(`Removing ${processedItems.length} successfully synced items from storage...`);
         
         // Remove from localStorage
         const localStorageProcessed = processedItems.filter(item => item.isFromLocalStorage);
@@ -455,7 +455,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
               } else {
                 localStorage.setItem(localStorageKey, JSON.stringify(filteredEntries));
               }
-              console.log(`🗑️ Removed ${localStorageProcessed.length} items from localStorage`);
+              console.log(`Removed ${localStorageProcessed.length} items from localStorage`);
             } catch (error) {
               console.error("Error updating localStorage:", error);
             }
@@ -467,14 +467,14 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         if (indexedDBProcessed.length > 0) {
           try {
             await clearPendingLogs();
-            console.log("🗑️ Cleared all IndexedDB entries");
+            console.log("Cleared all IndexedDB entries");
           } catch (error) {
             console.error("Error clearing IndexedDB:", error);
           }
         }
       }
       
-      console.log(`✅ Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      console.log(`Sync complete. Success: ${successCount}, Errors: ${errorCount}`);
       
       if (errors.length > 0) {
         console.error("Sync errors:", errors);
@@ -503,7 +503,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       }));
       
     } catch (error: any) {
-      console.error("❌ Error during offline sync:", error);
+      console.error("Error during offline sync:", error);
       if (isManualSync) {
         setSyncStatus("error");
         setTimeout(() => setSyncStatus("idle"), 3000);
@@ -522,66 +522,66 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
 
     if (syncStatus === "syncing") {
-      console.log("⚠️ Sync already in progress");
+      console.log("Sync already in progress");
       return;
     }
 
-    console.log("🔄 Manual sync triggered");
+    console.log("Manual sync triggered");
     await syncPendingData(true);
   };
 
   // IMPROVED useEffect for online/offline handling
   useEffect(() => {
     const handleOnline = async () => {
-      console.log("🌐 Connection restored - going online");
+      console.log("Connection restored - going online");
       setIsOnline(true);
       
       // Wait a bit for connection to stabilize, then sync
       setTimeout(async () => {
-        console.log("🔄 Auto-syncing after connection restored...");
+        console.log("Auto-syncing after connection restored...");
         try {
           await syncPendingData();
-          console.log("✅ Auto-sync completed successfully");
+          console.log("Auto-sync completed successfully");
         } catch (error) {
-          console.error("❌ Auto-sync failed:", error);
+          console.error("Auto-sync failed:", error);
         }
       }, 2000); // Increased delay for connection stability
     };
     
     const handleOffline = () => {
-      console.log("📱 Connection lost - going offline");
+      console.log("Connection lost - going offline");
       setIsOnline(false);
       setShowOfflineAlert(true);
     };
 
     // Add custom event listener for sync triggers from other components
     const handleTriggerSync = async () => {
-      console.log("🔔 Sync triggered by external event");
+      console.log("Sync triggered by external event");
       if (isOnline) {
         try {
           await syncPendingData();
-          console.log("✅ External sync completed successfully");
+          console.log("External sync completed successfully");
         } catch (error) {
-          console.error("❌ External sync failed:", error);
+          console.error("External sync failed:", error);
         }
       } else {
-        console.log("⚠️ Cannot sync - currently offline");
+        console.log("Cannot sync - currently offline");
       }
     };
 
     // Add visibility change handler to sync when app becomes visible
     const handleVisibilityChange = async () => {
       if (!document.hidden && navigator.onLine && isOnline) {
-        console.log("👁️ App became visible - checking for pending sync");
+        console.log("App became visible - checking for pending sync");
         setTimeout(async () => {
           try {
             await checkPendingItems();
             if (pendingCount > 0) {
-              console.log(`🔄 Found ${pendingCount} pending items, syncing...`);
+              console.log(`Found ${pendingCount} pending items, syncing...`);
               await syncPendingData();
             }
           } catch (error) {
-            console.error("❌ Visibility sync failed:", error);
+            console.error("Visibility sync failed:", error);
           }
         }, 1000);
       }
@@ -593,19 +593,19 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Initial setup
-    console.log("🚀 Dashboard mounted, initializing...");
-    console.log("🔌 Initial online status:", navigator.onLine);
+    console.log("Dashboard mounted, initializing...");
+    console.log("Initial online status:", navigator.onLine);
     
     // Check pending items and auto-sync if online
     const initializeSync = async () => {
       try {
         await checkPendingItems();
         if (navigator.onLine) {
-          console.log("🔄 Initial sync check...");
+          console.log("Initial sync check...");
           await syncPendingData();
         }
       } catch (error) {
-        console.error("❌ Initial sync failed:", error);
+        console.error("Initial sync failed:", error);
       }
     };
     
@@ -617,11 +617,11 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         await checkPendingItems();
         // Also try to sync if online and there are pending items
         if (navigator.onLine && isOnline && pendingCount > 0) {
-          console.log("⏰ Periodic sync check - found pending items");
+          console.log("Periodic sync check - found pending items");
           await syncPendingData();
         }
       } catch (error) {
-        console.error("❌ Periodic check failed:", error);
+        console.error("Periodic check failed:", error);
       }
     }, 30000);
 
@@ -833,8 +833,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    console.log("📷 Camera button clicked for:", key);
-    console.log("🔍 Button enabled check:", isButtonEnabled(key));
+    console.log("Camera button clicked for:", key);
+    console.log("Button enabled check:", isButtonEnabled(key));
 
     if (!isButtonEnabled(key)) {
       alert(
@@ -937,7 +937,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     const rawClockIn = parseMinutes(entry.clockIn);
     const rawClockOut = parseMinutes(entry.clockOut);
 
-    // 🛑 Edge case: identical time
+    // Edge case: identical time
     if (rawClockIn === rawClockOut) return "No Working Hours";
 
     const start = Math.max(rawClockIn, 8 * 60);
@@ -1217,10 +1217,10 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
     const holidayMap = await fetchPhilippineHolidays();
     const customSnapshot = await getDocs(collection(db, "customHolidays"));
-customSnapshot.docs.forEach(doc => {
-  const data = doc.data();
-  holidayMap[data.date] = "Custom Holiday"; // Just like how PH holidays are stored
-});
+    customSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      holidayMap[data.date] = "Custom Holiday"; // Just like how PH holidays are stored
+    });
     const monthlyData = getMonthlyGroupedLogs();
     const logs = monthlyData[selectedMonth];
     if (!logs) return;
@@ -1334,10 +1334,10 @@ customSnapshot.docs.forEach(doc => {
       address?: string;
     }
   ) => {
-    console.log("🎯 handleClockLogSubmit called");
+    console.log("handleClockLogSubmit called");
 
     if (!currentUser || !actionKeyRef.current) {
-      console.error("❌ Missing user or action key");
+      console.error("Missing user or action key");
       alert("Missing required data. Please try again.");
       return;
     }
@@ -1394,7 +1394,7 @@ customSnapshot.docs.forEach(doc => {
         await addDoc(collection(db, "clockLog"), cleanFirestoreData);
         console.log("Online save successful");
       } else {
-        console.log("📱 Attempting offline save...");
+        console.log("Attempting offline save...");
 
         const offlineData = {
           ...baseData,
@@ -1413,7 +1413,7 @@ customSnapshot.docs.forEach(doc => {
       console.error(" Main save failed:", mainError);
 
       if (isOnline) {
-        console.log("🔄 Trying offline fallback...");
+        console.log("Trying offline fallback...");
         try {
           const fallbackData = {
             uid: currentUser.uid,
@@ -1436,13 +1436,13 @@ customSnapshot.docs.forEach(doc => {
           };
 
           const localId = await offlineDB.saveAttendance(fallbackData);
-          console.log("✅ Fallback save successful:", localId);
+          console.log("Fallback save successful:", localId);
           await checkPendingItems();
           alert(
             "Network error. Saved offline - will sync when connection restored."
           );
         } catch (fallbackError) {
-          console.error("❌ All fallback attempts failed:", fallbackError);
+          console.error("All fallback attempts failed:", fallbackError);
           alert("Failed to save entry. Please try again.");
         }
       } else {
@@ -1457,58 +1457,56 @@ customSnapshot.docs.forEach(doc => {
 
   const [shareLocationRequest, setShareLocationRequest] = useState(false);
 
-useEffect(() => {
-  const unsub = onSnapshot(doc(db, "system", "locationTrigger"), (docSnap) => {
-    const data = docSnap.data();
-    const request = data?.shareLocationRequest ?? false;
-    setShareLocationRequest(request);
-    
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "system", "locationTrigger"), (docSnap) => {
+      const data = docSnap.data();
+      const request = data?.shareLocationRequest ?? false;
+      setShareLocationRequest(request);
+      
 
-    if (request) {
-      handleShareLocation(); 
-    }
-  });
+      if (request) {
+        handleShareLocation(); 
+      }
+    });
 
-  return () => unsub();
-}, []);
+    return () => unsub();
+  }, []);
 
   const handleShareLocation = () => {
     if (locationShared) return;
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude, longitude } = position.coords;
-      const user = currentUser;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const user = currentUser;
 
-      if (!user) return;
+        if (!user) return;
 
-      await addDoc(collection(db, "locations"), {
-        uid: user.uid,
-        name: userData?.firstName || "Unknown User",
-        surname: userData?.surname,
-        email: user.email,
-        latitude,
-        longitude,
-        sharedAt: new Date(),
-      });
+        await addDoc(collection(db, "locations"), {
+          uid: user.uid,
+          name: userData?.firstName || "Unknown User",
+          surname: userData?.surname,
+          email: user.email,
+          latitude,
+          longitude,
+          sharedAt: new Date(),
+        });
 
-      setLocationShared(true);
-      await setDoc(doc(db, "system", "locationTrigger"), {
-  shareLocationRequest: false,
-  timestamp: Date.now()
-});
+        setLocationShared(true);
+        await setDoc(doc(db, "system", "locationTrigger"), {
+          shareLocationRequest: false,
+          timestamp: Date.now()
+        });
 
-    },
-    (error) => {
-      console.error("Error sharing location:", error);
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 15000
-    }
-  );
-};
-
-
+      },
+      (error) => {
+        console.error("Error sharing location:", error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000
+      }
+    );
+  };
 
   return (
     <div className={styles.Dashboard}>
@@ -1691,14 +1689,14 @@ useEffect(() => {
           </div>
 
           {shareLocationRequest && (
-  locationShared ? (
-    <button className={styles.Location}>Location Shared</button>
-  ) : (
-    <button onClick={handleShareLocation} className={styles.Location2}>
-      Share Location
-    </button>
-  )
-)}
+            locationShared ? (
+              <button className={styles.Location}>Location Shared</button>
+            ) : (
+              <button onClick={handleShareLocation} className={styles.Location2}>
+                Share Location
+              </button>
+            )
+          )}
         </div>
       )}
 

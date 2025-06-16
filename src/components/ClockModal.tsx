@@ -100,7 +100,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     setTimeout(() => {
       setShowSuccessMessage(false);
       setSuccessMessage("");
-    }, 4000); // Show for 4 seconds
+    }, 4000);
   };
 
   // Sync localStorage fallback records
@@ -108,7 +108,6 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     if (!isOnline) return;
 
     try {
-      // Check for fallback records in localStorage
       const fallbackKeys = Object.keys(localStorage).filter(key => 
         key.startsWith('attendance_')
       );
@@ -137,21 +136,18 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // IMPROVED sync pending logs using safer IndexedDB functions
+  // Sync pending logs using safer IndexedDB functions
   const syncPendingLogs = async () => {
     if (!isOnline) return;
 
     try {
-      console.log("🔄 Starting ClockModal sync...");
+      console.log("Starting ClockModal sync...");
       
-      // Use the safer getPendingLogs function
       const pendingLogs = await getPendingLogs();
-      
-      // Also sync localStorage fallback records
       await syncLocalStorageFallback();
       
       if (pendingLogs.length === 0) {
-        console.log("✅ No pending logs to sync in ClockModal");
+        console.log("No pending logs to sync in ClockModal");
         return;
       }
 
@@ -163,7 +159,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
       for (const log of pendingLogs) {
         try {
-          console.log("🔄 Syncing ClockModal log:", log.id);
+          console.log("Syncing ClockModal log:", log.id);
           const imageUrl = await uploadToFirebase(log.image);
           await onSubmitClockLog(
             log.image,
@@ -179,11 +175,11 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         }
       }
 
-      // Remove successfully synced items using the safer delete function
+      // Remove successfully synced items
       for (const item of processedItems) {
         try {
           await deletePendingLog(item.id);
-          console.log(`🗑️ Deleted synced log: ${item.id}`);
+          console.log(`Deleted synced log: ${item.id}`);
         } catch (error) {
           console.error("Failed to delete synced log:", error);
         }
@@ -191,9 +187,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
       if (successCount > 0) {
         setSyncStatus(`Successfully synced ${successCount} records!`);
-        showSuccess(`🎉 ${successCount} offline records have been synced!`);
-        
-        // Trigger sync event for Dashboard
+        showSuccess(`${successCount} offline records have been synced!`);
         window.dispatchEvent(new CustomEvent('triggerOfflineSync'));
       }
       
@@ -201,10 +195,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         setSyncStatus(`${errorCount} records failed to sync`);
       }
 
-      console.log(`✅ ClockModal sync complete. Success: ${successCount}, Errors: ${errorCount}`);
+      console.log(`ClockModal sync complete. Success: ${successCount}, Errors: ${errorCount}`);
 
     } catch (error) {
-      console.error("❌ ClockModal sync error:", error);
+      console.error("ClockModal sync error:", error);
       setSyncStatus("Failed to sync some records");
     } finally {
       setTimeout(() => setSyncStatus(""), 3000);
@@ -276,21 +270,20 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // Accept cached location up to 5 minutes old
+          maximumAge: 300000
         });
       });
 
       const { latitude, longitude } = position.coords;
       let address = "Location acquired";
 
-      // Only try geocoding if online
       if (isOnline) {
         try {
           const apiKey = await getOpenCageKey();
           const response = await fetch(
             `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=${apiKey}`,
             { 
-              signal: AbortSignal.timeout(5000) // 5 second timeout
+              signal: AbortSignal.timeout(5000)
             }
           );
           
@@ -300,7 +293,6 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           }
         } catch (geocodingError) {
           console.warn("Geocoding failed, using coordinates only:", geocodingError);
-          // Don't throw error, just use default address
         }
       } else {
         address = "Location acquired (offline)";
@@ -326,8 +318,10 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // IMPROVED handleSubmit function with safer IndexedDB usage
+  // FIXED handleSubmit function
   const handleSubmit = async () => {
+    console.log("Starting handleSubmit...");
+    
     if (!capturedImage || !canvasRef.current) {
       alert("Please take a photo before submitting.");
       return;
@@ -337,22 +331,36 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     setSyncStatus("Processing attendance...");
 
     try {
-      // Face verification - skip if offline and models not loaded
-      let hasFace = true; // Default to true for offline mode
-      
+      // Face verification - ONLY if online and models are loaded
       if (isOnline) {
         try {
-          hasFace = await detectFace(canvasRef.current);
+          console.log("Checking face detection (online mode)...");
+          
+          // Add timeout to face detection
+          const faceCheckPromise = detectFace(canvasRef.current);
+          const timeoutPromise = new Promise<boolean>((resolve) => {
+            setTimeout(() => {
+              console.log("Face detection timeout, proceeding anyway");
+              resolve(true);
+            }, 3000);
+          });
+          
+          const hasFace = await Promise.race([faceCheckPromise, timeoutPromise]);
+          
           if (!hasFace) {
+            console.log("No face detected");
             alert("No face detected. Please retake photo with clear face visibility.");
             setIsUploading(false);
+            setSyncStatus("");
             setCapturedImage(null);
             return;
           }
+          console.log("Face detection passed");
         } catch (faceDetectionError) {
           console.warn("Face detection failed, proceeding anyway:", faceDetectionError);
-          // Continue with submission even if face detection fails
         }
+      } else {
+        console.log("Offline mode - skipping face detection");
       }
 
       // Prepare data
@@ -364,6 +372,8 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         hour12: true
       });
 
+      console.log("Preparing log data...", { timestamp, isOnline, shareLocation });
+
       const logData = {
         image: capturedImage,
         timestamp,
@@ -371,65 +381,81 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
         createdAt: now.toISOString()
       };
 
-      // Submission flow
+      // Try online submission first if online
       if (isOnline) {
+        console.log("Attempting online submission...");
         try {
-          const imageUrl = await uploadToFirebase(capturedImage);
+          // Add timeout to Firebase operations
+          const uploadPromise = uploadToFirebase(capturedImage);
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Upload timeout')), 15000);
+          });
+          
+          const imageUrl = await Promise.race([uploadPromise, timeoutPromise]);
+          console.log("Image uploaded successfully");
+          
           await onSubmitClockLog(capturedImage, timestamp, imageUrl, shareLocation ? location : undefined);
+          console.log("Online submission successful");
+          
           setSyncStatus("Attendance recorded successfully!");
-          showSuccess("✅ Attendance recorded successfully!");
+          showSuccess("Attendance recorded successfully!");
+          
+          // Reset and exit
+          setCapturedImage(null);
+          handleCameraClick();
+          return;
+          
         } catch (onlineError) {
-          console.error("Online submission failed, saving offline:", onlineError);
-          try {
-            // Use the safer savePendingLog function
-            await savePendingLog(logData);
-            setSyncStatus("Connection failed - saved offline, will sync when online");
-            showSuccess("📱 Saved offline - will sync when online");
-          } catch (dbError) {
-            console.error("Failed to save to IndexedDB:", dbError);
-            // Try localStorage as fallback
-            try {
-              const fallbackKey = `attendance_${Date.now()}`;
-              localStorage.setItem(fallbackKey, JSON.stringify(logData));
-              setSyncStatus("Saved locally - will sync when online");
-              showSuccess("💾 Saved locally - will sync when online");
-            } catch (storageError) {
-              console.error("All storage methods failed:", storageError);
-              throw new Error("Unable to save attendance record");
-            }
-          }
+          console.error("Online submission failed:", onlineError);
+          setSyncStatus("Connection failed - saving offline...");
         }
       } else {
-        // Offline mode - save using safer IndexedDB function
+        console.log("Offline mode - saving locally...");
+        setSyncStatus("Saving offline...");
+      }
+
+      // Offline storage (or fallback from failed online)
+      console.log("Attempting offline save...");
+      let savedSuccessfully = false;
+      
+      // Try IndexedDB first
+      try {
+        console.log("Trying IndexedDB save...");
+        await savePendingLog(logData);
+        console.log("IndexedDB save successful");
+        savedSuccessfully = true;
+        setSyncStatus("Saved offline - will sync when online");
+        showSuccess("Saved offline - will sync when online");
+      } catch (dbError) {
+        console.error("IndexedDB save failed:", dbError);
+        
+        // Fallback to localStorage
         try {
-          await savePendingLog(logData);
-          setSyncStatus("Saved offline - will sync when online");
-          showSuccess("📱 Saved offline - will sync when online");
-          console.log("Successfully saved offline attendance record");
-        } catch (dbError) {
-          console.error("IndexedDB save failed:", dbError);
-          // Try localStorage as fallback
-          try {
-            const fallbackKey = `attendance_${Date.now()}`;
-            localStorage.setItem(fallbackKey, JSON.stringify(logData));
-            setSyncStatus("Saved locally - will sync when online");
-            showSuccess("💾 Saved locally - will sync when online");
-            console.log("Saved to localStorage as fallback");
-          } catch (storageError) {
-            console.error("All storage methods failed:", storageError);
-            throw new Error("Unable to save attendance record");
-          }
+          console.log("Trying localStorage fallback...");
+          const fallbackKey = `attendance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem(fallbackKey, JSON.stringify(logData));
+          console.log("localStorage save successful");
+          savedSuccessfully = true;
+          setSyncStatus("Saved locally - will sync when online");
+          showSuccess("Saved locally - will sync when online");
+        } catch (storageError) {
+          console.error("localStorage save failed:", storageError);
+          throw new Error("All storage methods failed");
         }
       }
 
-      // Reset on success
-      setCapturedImage(null);
-      handleCameraClick();
+      if (savedSuccessfully) {
+        console.log("Offline save completed successfully");
+        setCapturedImage(null);
+        handleCameraClick();
+      }
+
     } catch (error: any) {
-      console.error("Submission error:", error);
+      console.error("Final submission error:", error);
       setSyncStatus("Failed to submit attendance");
       alert(`Submission failed: ${error.message || 'Please try again'}`);
     } finally {
+      console.log("Cleaning up handleSubmit");
       setIsUploading(false);
       setTimeout(() => setSyncStatus(""), 3000);
     }
@@ -488,7 +514,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
 
         {!isOnline && (
           <div className={styles.OfflineWarning}>
-            <p>🔴 You are currently offline. Attendance will be saved locally.</p>
+            <p>You are currently offline. Attendance will be saved locally.</p>
           </div>
         )}
 
