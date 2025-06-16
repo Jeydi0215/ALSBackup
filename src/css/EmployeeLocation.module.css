@@ -1,4 +1,4 @@
-.Calendar {
+.EmployeeLocation {
   width: 100%;
   min-height: 90dvh;
   flex-direction: column;
@@ -32,7 +32,7 @@
   }
 }
 
-.Calendar_title {
+.Location_title {
   padding: 1rem 0 1rem 1rem;
   background-color: #03396c;
   width: 100% !important;
@@ -41,59 +41,44 @@
   width: 100%;
   border-radius: 5px;
 }
-.Calendar_button {
+.Location_container {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  justify-content: space-between;
-}
-.Calendar_button span {
-  font-size: 1.2em;
-  color: #03396c;
-  font-weight: bold;
-  opacity: 0.75;
-}
-
-.Calendar_button button {
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  color: #fff;
-  background-color: #03396c;
-  outline: none;
-  border: none;
-  cursor: pointer;
-}
-.Calendar_button input {
-  padding: 0.5rem 1rem;
-  color: #03396c;
-}
-
-.Calendar_inner {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.Holiday {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-}
-.Holiday:nth-child(odd) {
-  background-color: #03396c;
-  color: #fff;
-}
-
-.Holiday img {
-  width: 32px;
-}
-.Holiday_con {
-  display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
-
+.SpecificLocation {
+  padding: 0.5rem 1rem 0.5rem 0.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 0 5px #33333350;
+  width: 49%;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 350ms;
+  color: #03396c;
+}
+.Location_inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.SpecificLocation:hover {
+  scale: 1.025;
+}
+.SpecificLocation img {
+  width: 64px;
+}
+.Random {
+  background-color: #03396c;
+  color: #fff;
+  width: fit-content;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border-radius: 5px;
+  font-size: 1.25em;
+}
 .Add_holiday {
   position: fixed;
 
