@@ -17,6 +17,7 @@ import {
   GeoPoint,
   serverTimestamp,
   setDoc,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Papa from "papaparse";
@@ -1123,6 +1124,11 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     if (!selectedMonth) return;
 
     const holidayMap = await fetchPhilippineHolidays();
+    const customSnapshot = await getDocs(collection(db, "customHolidays"));
+customSnapshot.docs.forEach(doc => {
+  const data = doc.data();
+  holidayMap[data.date] = "Custom Holiday"; // Just like how PH holidays are stored
+});
     const monthlyData = getMonthlyGroupedLogs();
     const logs = monthlyData[selectedMonth];
     if (!logs) return;
