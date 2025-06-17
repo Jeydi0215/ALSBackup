@@ -121,7 +121,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
             const imageUrl = await uploadToFirebase(logData.image);
             await onSubmitClockLog(
               logData.image,
-              logData.timestamp,
+              logData.timeString,
               imageUrl,
               logData.location
             );
@@ -136,7 +136,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // Sync pending logs using safer IndexedDB functions
+  // FIXED syncPendingLogs function
   const syncPendingLogs = async () => {
     if (!isOnline) return;
 
@@ -160,13 +160,19 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       for (const log of pendingLogs) {
         try {
           console.log("Syncing ClockModal log:", log.id);
+          console.log("Log data:", log);
+          
+          // Upload image to Firebase first
           const imageUrl = await uploadToFirebase(log.image);
+          
+          // FIXED: Pass the correct data format to onSubmitClockLog
           await onSubmitClockLog(
             log.image,
-            log.timestamp,
+            log.timeString, // Use timeString instead of timestamp
             imageUrl,
             log.location
           );
+          
           processedItems.push(log);
           successCount++;
         } catch (error) {
@@ -318,7 +324,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
     }
   };
 
-  // FIXED handleSubmit function
+  // FIXED handleSubmit function with proper data structure
   const handleSubmit = async () => {
     console.log("Starting handleSubmit...");
     
@@ -366,17 +372,24 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
       // Prepare data
       const now = new Date();
       const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-      const timestamp = manilaTime.toLocaleTimeString("en-US", {
+      const timeString = manilaTime.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true
       });
+      const dateString = manilaTime.toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+      });
 
-      console.log("Preparing log data...", { timestamp, isOnline, shareLocation });
+      console.log("Preparing log data...", { timeString, dateString, isOnline, shareLocation });
 
+      // FIXED: Create proper data structure that matches what Dashboard expects
       const logData = {
         image: capturedImage,
-        timestamp,
+        timeString: timeString,  // Use timeString instead of timestamp
+        date: dateString,        // Add the date field
         location: shareLocation ? location : null,
         createdAt: now.toISOString()
       };
@@ -394,7 +407,7 @@ const ClockModal = ({ handleCameraClick, showCamera, onSubmitClockLog }: Props) 
           const imageUrl = await Promise.race([uploadPromise, timeoutPromise]);
           console.log("Image uploaded successfully");
           
-          await onSubmitClockLog(capturedImage, timestamp, imageUrl, shareLocation ? location : undefined);
+          await onSubmitClockLog(capturedImage, timeString, imageUrl, shareLocation ? location : undefined);
           console.log("Online submission successful");
           
           setSyncStatus("Attendance recorded successfully!");

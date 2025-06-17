@@ -84,17 +84,12 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-
-  // New state for sync functionality
-  const [syncStatus, setSyncStatus] = useState<
-    "idle" | "syncing" | "success" | "error"
-  >("idle");
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [pendingCount, setPendingCount] = useState(0);
 
   // Function to check pending items count from both sources
   const checkPendingItems = async () => {
     try {
-      // Get IndexedDB items using your functions with error handling
       let indexedDBItems: any[] = [];
       try {
         indexedDBItems = await getPendingLogs();
@@ -102,7 +97,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         console.error("Error getting IndexedDB items:", indexedDBError);
       }
       
-      // Get localStorage items (fallback format)
       let localStorageCount = 0;
       try {
         const fallbackKeys = Object.keys(localStorage).filter(key => 
@@ -126,7 +120,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
   const getAllPendingItems = async (): Promise<any[]> => {
     const allItems: any[] = [];
     
-    // Get IndexedDB items
     try {
       const indexedDBItems = await getPendingLogs();
       allItems.push(...indexedDBItems);
@@ -134,7 +127,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
       console.error("Error getting IndexedDB items:", error);
     }
     
-    // Get localStorage fallback items
     try {
       const fallbackKeys = Object.keys(localStorage).filter(key => 
         key.startsWith('attendance_')
@@ -159,7 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return allItems;
   };
 
-  // FIXED syncPendingData function
+  // FIXED syncPendingData function with proper data mapping
   const syncPendingData = async (isManualSync = false) => {
     try {
       if (isManualSync) {
@@ -167,7 +159,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         console.log("Starting manual sync...");
       }
 
-      // Get all pending items from both IndexedDB and localStorage
       const allPendingItems = await getAllPendingItems();
 
       if (allPendingItems.length === 0) {
@@ -184,25 +175,23 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       let successCount = 0;
       let errorCount = 0;
-      const errors = [];
       const processedItems: any[] = [];
 
-      // Process each item sequentially
       for (const item of allPendingItems) {
         try {
           console.log("Syncing item:", item.localId || item.id);
+          console.log("Item data:", item);
 
-          // Prepare data for Firebase
+          const now = new Date();
+          const manilaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+          const actionKey = actionKeyRef.current || "clockIn";
+
           const cleanedData: any = {
-            uid: String(item.uid || currentUser?.uid),
-            key: String(item.key),
-            time: item.time ? (item.time instanceof Timestamp ? item.time : Timestamp.fromDate(new Date(item.time))) : Timestamp.now(),
-            timeString: String(item.timeString || item.timestamp),
-            date: String(item.date || new Date().toLocaleDateString("en-US", {
-              month: "long",
-              day: "2-digit", 
-              year: "numeric",
-            })),
+            uid: String(currentUser?.uid),
+            key: actionKey,
+            time: Timestamp.fromDate(manilaTime),
+            timeString: String(item.timeString),
+            date: String(item.date),
             status: "pending",
             imageUrl: String(item.imageUrl || ""),
             userFirstName: String(userData?.firstName || ""),
@@ -211,7 +200,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
             notes: String(item.notes || ""),
           };
 
-          // Add location if it exists
           if (item.location && typeof item.location.latitude === "number" && typeof item.location.longitude === "number") {
             cleanedData.location = {
               coordinates: new GeoPoint(item.location.latitude, item.location.longitude),
@@ -222,7 +210,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
           console.log("Sending to Firebase:", cleanedData);
           
-          // Add to Firebase with timeout
           const docRef = await Promise.race([
             addDoc(collection(db, "clockLog"), cleanedData),
             new Promise<never>((_, reject) => 
@@ -235,22 +222,18 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           processedItems.push(item);
           successCount++;
           
-          // Small delay between operations
           await new Promise(resolve => setTimeout(resolve, 200));
           
         } catch (error: any) {
           console.error(`Error syncing item:`, error);
-          errors.push(`${item.localId || item.id}: ${error.message}`);
           errorCount++;
           continue;
         }
       }
 
-      // Remove successfully synced items
       if (processedItems.length > 0) {
         console.log(`Removing ${processedItems.length} successfully synced items...`);
         
-        // Remove localStorage items
         const localStorageProcessed = processedItems.filter(item => item.isFromLocalStorage);
         for (const item of localStorageProcessed) {
           try {
@@ -261,7 +244,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
           }
         }
 
-        // Clear IndexedDB items
         const indexedDBProcessed = processedItems.filter(item => !item.isFromLocalStorage);
         if (indexedDBProcessed.length > 0) {
           try {
@@ -286,10 +268,8 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
         }
       }
       
-      // Update pending count
       await checkPendingItems();
       
-      // Dispatch custom event
       window.dispatchEvent(new CustomEvent('syncCompleted', { 
         detail: { successCount, errorCount } 
       }));
@@ -304,7 +284,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     }
   };
 
-  // Manual sync button handler
   const handleManualSync = async () => {
     if (!isOnline) {
       alert("You are currently offline. Please check your internet connection and try again.");
@@ -320,7 +299,6 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     await syncPendingData(true);
   };
 
-  // useEffect for online/offline handling
   useEffect(() => {
     const handleOnline = async () => {
       console.log("Connection restored - going online");
