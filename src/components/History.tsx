@@ -620,7 +620,7 @@ const History = () => {
             </tr>
           </thead>
           <tbody>
-            {dailyLogs.map(day => (
+            {filterLogs().map(day => (
               <tr key={day.date}>
                 <td>{day.date}</td>
                 <td
