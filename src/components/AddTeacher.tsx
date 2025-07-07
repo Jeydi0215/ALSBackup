@@ -2,8 +2,9 @@ import { useState } from "react";
 import styles from "../css/AddTeacher.module.css";
 import Close from "../assets/close.png";
 
-import { auth, db } from "../firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { db } from "../firebase";
+import { auth2 } from "../firebase"; // secondary auth instance
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 type Props = {
@@ -23,7 +24,7 @@ const AddTeacher = ({ handleAddTeacher }: Props) => {
     setError("");
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth2, email, password);
       const uid = userCredential.user.uid;
 
       await setDoc(doc(db, "users", uid), {
@@ -32,14 +33,15 @@ const AddTeacher = ({ handleAddTeacher }: Props) => {
         middleInitial,
         surname,
         email,
-         admin: false,
+        admin: false,
         status: "offline",
         approved: true,
         isEmployee: true,
         createdAt: new Date(),
       });
 
-      handleAddTeacher(); // Close modal
+      await signOut(auth2); // Sign out from secondary auth instance only
+      handleAddTeacher();   // Close modal
     } catch (err: any) {
       setError(err.message || "Failed to add teacher");
     }
