@@ -49,7 +49,7 @@ const AddTeacher = ({ handleAddTeacher }: Props) => {
     
     // If there was a logged in admin, sign them back in
     if (currentUser) {
-      await signInWithEmailAndPassword(auth, currentUser.email!, "AdminDTRALSOlongapo2025");
+      await signInWithEmailAndPassword(auth, currentUser.email!, "admin123");
     }
 
     handleAddTeacher(); // Close modal
