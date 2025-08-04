@@ -20,8 +20,6 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import html2pdf from "html2pdf.js";
 import dtrStyles from "../css/DTR.css?inline";
 import { savePendingLog, getPendingLogs, clearPendingLogs } from "../utils/indexedDB";
@@ -952,7 +950,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     const customSnapshot = await getDocs(collection(db, "customHolidays"));
     customSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      holidayMap[data.date] = "Custom Holiday";
+      holidayMap[data.date] = data.holidayName;
     });
     
     const monthlyData = getMonthlyGroupedLogs();

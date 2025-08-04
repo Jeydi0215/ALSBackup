@@ -6,11 +6,11 @@ import Trash from "../assets/trash.png";
 
 const Calendar = () => {
   const [holidayInput, setHolidayInput] = useState("");
+  const [holidayName, setHolidayName] = useState(""); // NEW
   const [customHolidays, setCustomHolidays] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Fetch holidays from Firestore
   const fetchHolidays = async () => {
     try {
       setLoading(true);
@@ -25,15 +25,18 @@ const Calendar = () => {
     }
   };
 
-  // Check if date is valid
   const isValidDate = (dateString: string) => {
     return !isNaN(new Date(dateString).getTime());
   };
 
-  // Add holiday to Firestore
   const addHoliday = async () => {
     if (!holidayInput || !isValidDate(holidayInput)) {
       alert("Please select a valid date!");
+      return;
+    }
+
+    if (!holidayName.trim()) {
+      alert("Please enter a holiday name!");
       return;
     }
 
@@ -50,9 +53,11 @@ const Calendar = () => {
       setLoading(true);
       await addDoc(collection(db, "customHolidays"), {
         date: holidayInput,
+        holidayName: holidayName.trim(),
       });
       fetchHolidays();
       setHolidayInput("");
+      setHolidayName(""); // Clear name input
       setShowAdd(false);
     } catch (error) {
       console.error("Error adding holiday:", error);
@@ -62,7 +67,6 @@ const Calendar = () => {
     }
   };
 
-  // Delete holiday
   const deleteHoliday = async (id: string) => {
     try {
       setLoading(true);
@@ -76,7 +80,6 @@ const Calendar = () => {
     }
   };
 
-  // Toggle modal
   const handleShowClick = () => {
     if (!holidayInput) {
       alert("Please select a date first!");
@@ -120,7 +123,8 @@ const Calendar = () => {
                     month: "long",
                     day: "2-digit",
                     year: "numeric",
-                  })}
+                  })}{" "}
+                  - {holiday.holidayName}
                 </span>
                 <img
                   src={Trash}
@@ -137,13 +141,22 @@ const Calendar = () => {
       {/* Confirmation modal */}
       {showAdd && (
         <div className={styles.Add_holiday}>
-          Are you sure you want to add{" "}
-          {new Date(holidayInput).toLocaleDateString("en-US", {
-            month: "long",
-            day: "2-digit",
-            year: "numeric",
-          })}{" "}
-          as a custom Holiday?
+          <p>
+            Add{" "}
+            {new Date(holidayInput).toLocaleDateString("en-US", {
+              month: "long",
+              day: "2-digit",
+              year: "numeric",
+            })}{" "}
+            as a custom Holiday?
+          </p>
+          <input
+            type="text"
+            placeholder="Holiday name"
+            value={holidayName}
+            onChange={(e) => setHolidayName(e.target.value)}
+            className={styles.Holiday_name_input}
+          />
           <div className={styles.Add_button}>
             <button onClick={() => setShowAdd(false)} disabled={loading}>
               Cancel

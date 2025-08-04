@@ -36,6 +36,7 @@ export const MonitoringProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useMonitoring = () => {
   const context = useContext(MonitoringContext);
   if (!context) {
