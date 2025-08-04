@@ -779,7 +779,7 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
     return monthlyGrouped;
   };
 
- const generateDTRHtml = (
+  const generateDTRHtml = (
     name: string,
     position: string,
     office: string,
@@ -827,77 +827,70 @@ const Dashboard: React.FC<DashboardProps> = ({ handleCameraClick }) => {
 
       return `
         <tr ${rowStyle}>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${readableDate}</td>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${log?.clockIn || "-"}</td>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${log?.breakIn || "-"}</td>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${log?.breakOut || "-"}</td>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${log?.clockOut || "-"}</td>
-          <td style="padding: 2px 4px; border: 1px solid #000; text-align: center; font-size: 10px;">${notes || calculateUndertime(log)}</td>
+          <td>${readableDate}</td>
+          <td>${log?.clockIn || "-"}</td>
+          <td>${log?.breakIn || "-"}</td>
+          <td>${log?.breakOut || "-"}</td>
+          <td>${log?.clockOut || "-"}</td>
+          <td>${notes || calculateUndertime(log)}</td>
         </tr>`;
     }).join("");
 
     return `
-    <div style="width: 50%; height: 100vh; margin: 0; font-family: Arial, sans-serif; font-size: 10px; line-height: 1.2; border: 2px solid #000; padding: 8px; box-sizing: border-box; display: flex; flex-direction: column;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 8px;">
+    <div class="DTR">
+      <div class="Civil">
         <span>Civil Service Form No. 48</span>
         <span>1-136</span>
       </div>
-      
-      <div style="text-align: center; margin-bottom: 6px;">
-        <div style="font-weight: bold; margin-bottom: 2px;">DAILY TIME RECORD</div>
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
-          <span style="font-weight: bold; font-size: 11px;">${name}</span>
-          <span style="font-size: 9px;">${position}</span>
-          <span style="font-size: 9px;">${office}</span>
+      <div class="Daily">
+        <span class="Bold">DAILY TIME RECORD</span>
+        <div class="Daily-inner">
+          <span class="Bold Name">${name}</span>
+          <span>${position}</span>
+          <span>${office}</span>
         </div>
       </div>
-      
-      <div style="margin-bottom: 6px; font-size: 9px;">
-        <div style="margin-bottom: 2px;">For the Month of: <strong>${month}</strong></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; font-size: 8px;">
+      <div class="Month">
+        <span>For the Month of: ${month}</span>
+        <div class="Month-inner">
           <span>Official Hours of:</span>
           <span>Regular Days:</span>
           <span>Arrival and Departure:</span>
           <span>Saturdays:</span>
         </div>
       </div>
-      
-      <div style="flex: 1; display: flex; flex-direction: column;">
-        <div style="font-weight: bold; text-align: center; margin-bottom: 2px; font-size: 9px;">PERMANENT</div>
-        <div style="flex: 1; overflow: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
-            <thead>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;" rowspan="2">Date</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;" colspan="2">AM</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;" colspan="2">PM</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;" rowspan="2">UNDERTIME</th>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">ARRIVAL</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">DEPARTURE</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">ARRIVAL</th>
-                <th style="border: 1px solid #000; padding: 2px; text-align: center; font-weight: bold;">DEPARTURE</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
+      <div class="Table">
+        <span class="Bold">PERMANENT</span>
+        <table border="1" cellpadding="4" cellspacing="0">
+          <thead>
+            <tr>
+              <th rowspan="2">Date</th>
+              <th colspan="2">AM</th>
+              <th colspan="2">PM</th>
+              <th rowspan="2">UNDERTIME</th>
+            </tr>
+            <tr>
+              <th>ARRIVAL</th>
+              <th>DEPARTURE</th>
+              <th>ARRIVAL</th>
+              <th>DEPARTURE</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
-      
-      <div style="margin-top: 6px; font-size: 8px; text-align: justify;">
-        <div style="margin-bottom: 8px;">I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</div>
-        <div style="height: 20px; border-bottom: 1px solid #000; margin-bottom: 2px;"></div>
-        <div style="margin-bottom: 8px;">Reviewed by:</div>
-        <div style="height: 20px; border-bottom: 1px solid #000; margin-bottom: 2px;"></div>
-        <div style="font-weight: bold; text-align: center;">Immediate Supervisor/Grade Leader/ Department Head</div>
+      <div class="Certify">
+        <span>I Certify on my honor that the above is a true and correct report of the hours work performed, record, of which was daily at the time of arrival and departure from office.</span>
+        <span class="Signature"></span>
+        <span>Reviewed by:</span>
+        <span class="Signature"></span>
+        <span class="Bold">Immediate Supervisor/Grade Leader/ Department Head</span>
       </div>
-      
-      <div style="font-size: 8px; text-align: center;">
-        <div style="margin-bottom: 4px;">VERIFIED as to the prescribed office hours</div>
-        <div style="margin-top: 10px;">
-          <div style="font-weight: bold;">DR. ELEONORA C. CAYABYAB</div>
-          <div style="font-weight: bold;">Chief - Curriculum Implementation Division</div>
+      <div class="Verified">
+        <span>VERIFIED as to the prescribed office hours</span>
+        <div class="Verified-inner">
+          <span class="Bold">DR. ELEONORA C. CAYABYAB</span>
+          <span class="Bold">Chief - Curriculum Implementation Division</span>
         </div>
       </div>
     </div>`;
