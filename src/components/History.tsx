@@ -336,7 +336,7 @@ const History = () => {
     const customSnapshot = await getDocs(collection(db, "customHolidays"));
     customSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      holidayMap[data.date] = "Custom Holiday"; // Just like how PH holidays are stored
+      holidayMap[data.date] = data.holidayName;
     });
 
     const logsForMonth = dailyLogs.filter(log => {
