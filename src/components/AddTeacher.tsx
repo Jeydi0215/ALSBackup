@@ -2,9 +2,8 @@ import { useState } from "react";
 import styles from "../css/AddTeacher.module.css";
 import Close from "../assets/close.png";
 
-import { db } from "../firebase";
-import { auth2 } from "../firebase"; // secondary auth instance
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, db } from "../firebase";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 type Props = {
@@ -20,32 +19,44 @@ const AddTeacher = ({ handleAddTeacher }: Props) => {
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  e.preventDefault();
+  setError("");
 
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth2, email, password);
-      const uid = userCredential.user.uid;
+  try {
+    // Store current user
+    const currentUser = auth.currentUser;
+    
+    // Create new teacher account
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
 
-      await setDoc(doc(db, "users", uid), {
-        uid,
-        firstName,
-        middleInitial,
-        surname,
-        email,
-        admin: false,
-        status: "offline",
-        approved: true,
-        isEmployee: true,
-        createdAt: new Date(),
-      });
+    // Create user document
+    await setDoc(doc(db, "users", uid), {
+      uid,
+      firstName,
+      middleInitial,
+      surname,
+      email,
+      admin: false,
+      status: "offline",
+      approved: true,
+      isEmployee: true,
+      createdAt: new Date(),
+    });
 
-      await signOut(auth2); // Sign out from secondary auth instance only
-      handleAddTeacher();   // Close modal
-    } catch (err: any) {
-      setError(err.message || "Failed to add teacher");
+    // Sign out the newly created teacher
+    await signOut(auth);
+    
+    // If there was a logged in admin, sign them back in
+    if (currentUser) {
+      await signInWithEmailAndPassword(auth, currentUser.email!, "AdminDTRALSOlongapo2025");
     }
-  };
+
+    handleAddTeacher(); // Close modal
+  } catch (err: any) {
+    setError(err.message || "Failed to add teacher");
+  }
+};
 
   return (
     <div className={styles.AddTeacher}>

@@ -20,8 +20,6 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import html2pdf from "html2pdf.js";
 import dtrStyles from "../css/DTR.css?inline";
 import { savePendingLog, getPendingLogs, clearPendingLogs } from "../utils/indexedDB";
