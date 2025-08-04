@@ -39,15 +39,17 @@ const app = getApps().length === 0
 const app2 = getApps().find(app => app.name === "secondary") 
   || initializeApp(firebaseConfig2, "secondary");
 
-@@ -44,6 +44,7 @@ const analytics = getAnalytics(app);
+// Services
+const analytics = getAnalytics(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const rt = getDatabase(app)
 
-
 // For secondary app (optional usage)
 import {getAuth as getAuth2} from "firebase/auth";
-@@ -53,7 +54,7 @@ import {getStorage as getStorage2} from "firebase/storage"
+import {getFirestore as getFirestore2} from "firebase/firestore"
+import {getStorage as getStorage2} from "firebase/storage"
+
 const auth2 = getAuth2(app2);
 const db2 = getFirestore2(app2);
 const firebaseStorage = getStorage2(app2);
